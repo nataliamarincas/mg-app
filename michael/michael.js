@@ -7,7 +7,7 @@
   var API_URL = 'https://script.google.com/macros/s/AKfycbyRzND4gkwm0CiIqCqVgAx0hARZvmSZpE9HqCbJ_QB6CUTv3aYlHpdFNk7M0-wYMa8bfw/exec';
   var LS_CLAVE = 'mgm_clave', LS_TEMA = 'mg_tema';
   var clave = leerLS(LS_CLAVE);
-  var S = { tab: 'hoy', datos: {}, planSel: null, semanaSel: null, clienteSel: null, cargado: {}, filtro: 'todos', q: '', fotos: {}, gen: 0, precargado: false, enCurso: {} };
+  var S = { tab: 'hoy', datos: {}, planSel: null, semanaSel: null, clienteSel: null, cargado: {}, filtro: 'todos', q: '', fotos: {}, gen: 0, precargado: false, enCurso: {}, vista: 'clientes', hojaFija: false };
   var toastTimer = null, urlsPdf = [];
 
   var TABS = [
@@ -99,11 +99,14 @@
     var t = $('toast'); t.textContent = m; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 3600);
   }
-  function abrirHoja(html) {
-    $('sheet').innerHTML = '<div class="sheet-bg" data-act="cerrarHoja"></div><div class="sheet-body" role="dialog" aria-modal="true">' + html + '</div>';
+  // fija: no se cierra tocando afuera ni con Escape (la de la clave, para no perderla sin querer).
+  function abrirHoja(html, fija) {
+    S.hojaFija = !!fija;
+    $('sheet').innerHTML = '<div class="sheet-bg"' + (fija ? '' : ' data-act="cerrarHoja"') + '></div><div class="sheet-body" role="dialog" aria-modal="true">' + html + '</div>';
     $('sheet').hidden = false;
   }
   function cerrarHoja() {
+    S.hojaFija = false; // borrar el contenido de la hoja borra la clave, si estaba a la vista
     $('sheet').hidden = true; $('sheet').innerHTML = '';
     urlsPdf.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) { /* nada */ } }); urlsPdf = [];
   }
@@ -172,6 +175,8 @@
     var act;
     if (quien === 'Michael' && x.pagoId && x.paso === 'Validar su pago') act = 'data-act="abrirPago" data-id="' + esc(x.pagoId) + '"';
     else if (quien === 'Michael' && x.planId) act = 'data-act="abrirPlan" data-id="' + esc(x.planId) + '"';
+    else if (quien === 'Michael' && x.ventaId) act = 'data-act="pedirAlta" data-id="' + esc(x.ventaId) + '" data-n="' + esc(x.nombre) + '"';
+    else if (quien === 'Michael' && x.paso === 'Activarlo y crear su clave') act = 'data-act="pedirActivar" data-id="' + esc(x.id) + '"';
     else act = 'data-act="abrirCliente" data-id="' + esc(x.id) + '"';
     return '<button class="row tap" ' + act + '><span class="t"><b>' + esc(x.nombre) + '</b><span>' + esc(x.paso) + '</span></span>' + FLECHA + '</button>';
   }
@@ -221,10 +226,16 @@
     if (S.filtro === 'pausa') return c.estado === 'Pausado' || c.estado === 'Inactivo';
     return true;
   }
+  function vistas() {
+    return '<div class="seg" role="group" aria-label="Ver">' + [['clientes', 'Clientes'], ['prospectos', 'Prospectos']].map(function (v) {
+      return '<button data-act="vista" data-v="' + v[0] + '" aria-pressed="' + (S.vista === v[0]) + '">' + v[1] + '</button>';
+    }).join('') + '</div>';
+  }
   function dibujarClientes(lista) {
     var el = $('s-clientes');
-    if (!lista.length) { el.innerHTML = '<h1>Clientes</h1><div class="empty"><b>Todavía no hay clientes</b>Cuando des de alta al primero, aparecerá aquí.</div>'; return; }
-    el.innerHTML = '<h1>Clientes</h1><div class="search"><input id="buscar" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nombre o código" aria-label="Buscar cliente" value="' + esc(S.q) + '"></div>' +
+    if (S.vista === 'prospectos') { verProspectos(false); return; }
+    if (!lista.length) { el.innerHTML = '<h1>Clientes</h1>' + vistas() + '<div class="empty"><b>Todavía no hay clientes</b>Cuando des de alta al primero, aparecerá aquí.</div>'; return; }
+    el.innerHTML = '<h1>Clientes</h1>' + vistas() + '<div class="search"><input id="buscar" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nombre o código" aria-label="Buscar cliente" value="' + esc(S.q) + '"></div>' +
       '<div class="chips" role="group" aria-label="Filtrar">' + FILTROS.map(function (f) { return '<button data-act="filtro" data-f="' + f[0] + '" aria-pressed="' + (S.filtro === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div>' +
       '<div class="countline" id="cuenta" aria-live="polite"></div><div class="list" id="listaClientes" style="margin-top:6px"></div>';
     pintarLista();
@@ -289,7 +300,7 @@
     }).join('') + '</div>' : '<p class="muted">Todavía no hay pagos.</p>') + '</div>';
     var docs = '<div class="block"><h2>Documentos</h2><div class="block" style="margin-top:0"><div class="kv"><span>Autorización de datos</span><span>' + (d.firmas.autorizacion ? 'Firmada' : 'Pendiente') + '</span></div><div class="kv"><span>Contrato</span><span>' + (d.firmas.contrato ? 'Firmado' : 'Pendiente') + '</span></div></div></div>';
     $('s-clientes').innerHTML = '<button class="back" data-act="volverClientes">' + ATRAS + 'Clientes</button><h1>' + esc(c.nombre) + '</h1>' +
-      '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa + kpis + plan + progreso + fotos + coms + pagos + docs +
+      '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa + kpis + plan + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
       (c.baja ? '<div class="banner" style="margin-top:24px">Se dio de baja el ' + esc(fechaLarga(c.baja)) + (c.motivoBaja ? '. Motivo: ' + esc(c.motivoBaja) : '') + '.</div>' : '');
   }
 
@@ -460,6 +471,222 @@
     else { dibujarPagos(S.datos.pagos); abrirPagoDetalle(id); }
   }
 
+  /* ---------- Entrada de clientes: prospectos, alta, activar, clave, pausa y baja ---------- */
+  // Tras una acción se olvida solo lo afectado y se recarga la pantalla en la que está Michael (sin moverlo de pestaña).
+  function olvidar(llaves, idCliente) {
+    llaves.forEach(function (k) { delete S.datos[k]; delete S.cargado[k]; delete S.enCurso[k]; });
+    if (idCliente && S.datos.cliente) delete S.datos.cliente[idCliente];
+    S.gen++;
+  }
+  function recargarActual() {
+    if (S.tab === 'clientes' && S.clienteSel) cargarCliente(S.clienteSel, true);
+    else if (S.tab === 'clientes' && S.vista === 'prospectos') verProspectos(true);
+    else if (!S.planSel && !S.clienteSel) cargarPantalla(S.tab, true);
+  }
+  function fallaEnHoja(btn, e) {
+    ocupar(btn, false);
+    if (e && e.sesion) { manejarError(e); return; }
+    var err = $('hojaErr');
+    if (err) { err.hidden = false; err.textContent = e.message; } else toast(e.message);
+  }
+  var ERR_HOJA = '<div class="banner err" id="hojaErr" role="alert" hidden></div>';
+  function botones(principal, cancelar) {
+    return '<div class="actions">' + principal + '<button class="btn ghost block-btn" data-act="cerrarHoja">' + (cancelar || 'Cancelar') + '</button></div>';
+  }
+  function diasTexto(n) { return n === null || n === undefined ? '' : (n <= 0 ? 'seguimiento hoy' : 'sin seguimiento hace ' + plural(n, 'día', 'días')); }
+
+  // Prospectos
+  function verProspectos(forzar) {
+    var el = $('s-clientes'), previo = S.datos.prospectos;
+    if (previo && !forzar) { dibujarProspectos(previo); return; }
+    if (!previo) cargando(el);
+    var gen = S.gen;
+    api('admin_prospectos').then(function (d) {
+      if (S.gen === gen) S.datos.prospectos = d;
+      if (S.tab === 'clientes' && S.vista === 'prospectos' && !S.clienteSel) dibujarProspectos(d);
+    }).catch(function (e) { if (S.tab === 'clientes' && S.vista === 'prospectos' && !S.clienteSel) manejarError(e, el); else if (e && e.sesion) manejarError(e); });
+  }
+  function dibujarProspectos(d) {
+    var lista = d.items.length ? '<div class="list" id="listaProspectos" style="margin-top:6px">' + d.items.map(function (p) {
+      var sub = [p.servicio, p.origen, diasTexto(p.dias)].filter(Boolean).join(' · ');
+      return '<button class="row tap" data-act="abrirProspecto" data-id="' + esc(p.id) + '"><span class="t"><b>' + esc(p.nombre) + '</b><span>' + esc(sub) + '</span></span><span class="tag ' + (p.estado === 'Ganado' ? 'validado' : 'pendiente') + '">' + esc(p.estado) + '</span></button>';
+    }).join('') + '</div>' : '<div class="empty"><b>No hay prospectos abiertos</b>Cuando alguien te escriba interesado, regístralo aquí.</div>';
+    $('s-clientes').innerHTML = '<h1>Clientes</h1>' + vistas() + '<div class="add"><button class="btn" data-act="nuevoProspecto">+ Nuevo prospecto</button></div>' +
+      '<div class="countline">' + plural(d.items.length, 'prospecto abierto', 'prospectos abiertos') + '</div>' + lista;
+  }
+  function opciones(lista, elegido) {
+    return lista.map(function (x) { return '<option value="' + esc(x) + '"' + (x === elegido ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
+  }
+  function nuevoProspecto() {
+    var d = S.datos.prospectos;
+    if (!d) { verProspectos(true); return; }
+    abrirHoja('<h2>Nuevo prospecto</h2><div class="form">' +
+      '<label for="pNombre">Nombre</label><input id="pNombre" maxlength="80" autocomplete="off">' +
+      '<label for="pTel">WhatsApp</label><input id="pTel" type="tel" inputmode="tel" maxlength="30" autocomplete="off" placeholder="Por ejemplo 300 123 4567">' +
+      '<label for="pServ">Paquete que le interesa</label><select id="pServ">' + opciones(d.servicios.map(function (s) { return s.servicio; })) + '</select>' +
+      '<label for="pOrigen">¿De dónde llegó?</label><select id="pOrigen">' + opciones(d.origenes) + '</select></div>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="guardarProspecto">Guardar prospecto</button>'));
+  }
+  function guardarProspecto(btn) {
+    var datos = { nombre: $('pNombre').value.trim(), contacto: $('pTel').value.trim(), servicio: $('pServ').value, origen: $('pOrigen').value };
+    if (!datos.nombre) { toast('Escribe el nombre.'); return; }
+    ocupar(btn, true);
+    api('admin_ventaNueva', datos).then(function () {
+      cerrarHoja(); toast('Prospecto registrado.'); olvidar(['prospectos', 'resumen']); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function abrirProspecto(id) {
+    var p = ((S.datos.prospectos || {}).items || []).filter(function (x) { return x.id === id; })[0];
+    if (!p) { verProspectos(true); return; }
+    var otros = (S.datos.prospectos.estados || []).filter(function (e) { return e !== p.estado && e !== 'Ganado' && e !== 'Perdido'; });
+    var cuerpo = p.estado === 'Ganado'
+      ? '<p class="muted" style="margin-top:12px">Ya dijo que sí. Dale de alta para enviarle el formulario.</p>' + ERR_HOJA +
+        botones('<button class="btn block-btn" data-act="alta" data-id="' + esc(p.id) + '">Dar de alta</button>', 'Cerrar')
+      : '<h3>Cambiar estado</h3><div class="estados">' + otros.map(function (e) { return '<button data-act="ventaEstado" data-id="' + esc(p.id) + '" data-e="' + esc(e) + '">' + esc(e) + '</button>'; }).join('') + '</div>' + ERR_HOJA +
+        botones('<button class="btn block-btn" data-act="ganarYAlta" data-id="' + esc(p.id) + '">Ganado: dar de alta</button><button class="btn ghost block-btn" data-act="pedirPerdido" data-id="' + esc(p.id) + '">Marcar como perdido</button>', 'Cerrar');
+    abrirHoja('<h2>' + esc(p.nombre) + '</h2><p style="margin-top:4px"><span class="tag pendiente">' + esc(p.estado) + '</span></p>' +
+      '<div class="block" style="margin-top:14px"><div class="kv"><span>Paquete</span><span>' + esc(p.servicio || '—') + '</span></div>' +
+      '<div class="kv"><span>Llegó por</span><span>' + esc(p.origen || '—') + '</span></div>' +
+      '<div class="kv"><span>WhatsApp</span><span>' + esc(p.contacto || '—') + '</span></div>' +
+      (p.dias !== null ? '<div class="kv"><span>Seguimiento</span><span>' + esc(diasTexto(p.dias)) + '</span></div>' : '') + '</div>' + cuerpo);
+  }
+  function ventaEstado(btn, id, estado, motivo) {
+    ocupar(btn, true);
+    return api('admin_ventaEstado', { id: id, estado: estado, motivo: motivo || '' }).then(function (r) {
+      olvidar(['prospectos', 'resumen', 'hoy']); return r;
+    });
+  }
+  function cambiarEstadoVenta(btn, id, estado) {
+    ventaEstado(btn, id, estado).then(function () { cerrarHoja(); toast('Quedó en ' + estado + '.'); recargarActual(); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function pedirPerdido(id) {
+    abrirHoja('<h2>Marcar como perdido</h2><p class="muted" style="margin:8px 0 14px">Anota por qué no siguió, para aprender de cada caso.</p>' +
+      '<textarea id="motivoTxt" maxlength="200" aria-label="Motivo" placeholder="Por ejemplo: le pareció caro"></textarea>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="perdido" data-id="' + esc(id) + '">Marcar como perdido</button>'));
+  }
+  function perdido(btn, id) {
+    var motivo = ($('motivoTxt') || {}).value || '';
+    if (!motivo.trim()) { toast('Escribe el motivo.'); return; }
+    ventaEstado(btn, id, 'Perdido', motivo).then(function () { cerrarHoja(); toast('Quedó como perdido.'); recargarActual(); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+
+  // Alta
+  function pedirAlta(idVenta, nombre) {
+    abrirHoja('<h2>Dar de alta a ' + esc(nombre) + '</h2><p class="muted" style="margin-top:8px">Queda En ingreso y te doy el mensaje con el formulario para enviárselo.</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="alta" data-id="' + esc(idVenta) + '">Dar de alta</button>'));
+  }
+  function alta(btn, idVenta) {
+    ocupar(btn, true);
+    api('admin_alta', { idVenta: idVenta }).then(function (r) {
+      olvidar(['prospectos', 'hoy', 'clientes', 'resumen']); mostrarMensaje(r); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function ganarYAlta(btn, id) {
+    ventaEstado(btn, id, 'Ganado').then(function () { return api('admin_alta', { idVenta: id }); }).then(function (r) {
+      olvidar(['prospectos', 'hoy', 'clientes', 'resumen']); mostrarMensaje(r); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function mostrarMensaje(r) {
+    abrirHoja('<h2>' + (r.yaExistia ? 'Ya estaba dado de alta' : esc(r.nombre) + ' quedó En ingreso') + '</h2>' +
+      '<p class="muted" style="margin:8px 0 12px">Envíale este mensaje con el formulario. Cuando firme y lo llene, Nata prepara su plan.</p>' +
+      '<textarea class="msg" id="msjTxt" readonly aria-label="Mensaje para el cliente">' + esc(r.mensaje) + '</textarea>' +
+      '<div class="actions"><button class="btn block-btn" data-act="copiar">Copiar mensaje</button>' +
+      (r.whatsapp ? '<a class="btn ghost block-btn" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener noreferrer">Abrir WhatsApp</a>' : '<p class="small muted">No hay un WhatsApp válido: copia el mensaje y envíalo tú.</p>') +
+      '<button class="btn ghost block-btn" data-act="cerrarHoja">Listo</button></div>');
+  }
+  function copiar() {
+    var t = $('msjTxt'); if (!t) return;
+    var hecho = function () { toast('Mensaje copiado.'); };
+    var aMano = function () { try { t.select(); if (document.execCommand && document.execCommand('copy')) { hecho(); return; } } catch (e) { /* sin portapapeles */ } toast('Mantén presionado el mensaje para copiarlo.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(hecho, aMano); else aMano();
+  }
+
+  // Ficha: acciones según el estado
+  function accionesCliente(c) {
+    var b = [];
+    if (c.estado === 'En ingreso') b.push('<button class="btn block-btn" data-act="pedirActivar" data-id="' + esc(c.id) + '">Activar y crear su clave</button>');
+    if (c.estado === 'Activo') b.push('<button class="btn ghost block-btn" data-act="pedirRenovar" data-id="' + esc(c.id) + '">Renovar clave</button>', '<button class="btn ghost block-btn" data-act="pedirPausa" data-id="' + esc(c.id) + '">Pausar</button>');
+    if (c.estado === 'Pausado') b.push('<button class="btn block-btn" data-act="reactivar" data-id="' + esc(c.id) + '">Reactivar</button>', '<button class="btn ghost block-btn" data-act="pedirRenovar" data-id="' + esc(c.id) + '">Renovar clave</button>');
+    if (c.estado !== 'Inactivo') b.push('<button class="btn ghost block-btn" data-act="pedirBaja" data-id="' + esc(c.id) + '">Dar de baja</button>');
+    return b.length ? '<div class="block"><h2>Acciones</h2><div class="actions" style="margin-top:12px">' + b.join('') + '</div></div>' : '';
+  }
+  function nombreDe(id) {
+    var c = ((S.datos.cliente || {})[id] || {}).cliente || (S.datos.clientes || []).filter(function (x) { return x.id === id; })[0] || (((S.datos.hoy || {}).items || []).filter(function (x) { return x.id === id; })[0]);
+    return c ? c.nombre : 'este cliente';
+  }
+
+  // Activar
+  function pedirActivar(id) {
+    abrirHoja('<h2>Activar a ' + esc(nombreDe(id)) + '</h2><div id="actCuerpo"><div class="skel big" style="margin-top:16px"></div><div class="skel" style="width:70%"></div></div>');
+    api('admin_activar', { id: id, revisar: true }).then(function (d) {
+      var cuerpo = $('actCuerpo'); if (!cuerpo) return;
+      var s = d.sugerido, aviso = d.avisos.length;
+      cuerpo.innerHTML = '<p class="muted" style="margin-top:8px">Revisa los datos. Los sugerí según su paquete (' + esc(d.servicio || '—') + ') y su plan aprobado.</p><div class="form">' +
+        '<label for="aMod">Modalidad</label><input id="aMod" maxlength="30" value="' + esc(s.modalidad || '') + '">' +
+        '<div class="pair"><div><label for="aSes">Sesiones por semana</label><input id="aSes" type="number" inputmode="numeric" min="1" max="14" value="' + esc(s.sesiones || '') + '"></div>' +
+        '<div><label for="aCorte">Día de corte</label><input id="aCorte" type="number" inputmode="numeric" min="1" max="31" value="' + esc(s.diaCorte || '') + '"></div></div>' +
+        '<label for="aIng">Fecha de ingreso</label><input id="aIng" type="date" value="' + esc(s.ingreso || '') + '"></div>' +
+        (aviso ? '<div class="banner warn">' + esc(d.avisos.join('. ')) + '. Tú decides si lo activas igual.</div><label class="check"><input type="checkbox" id="aSinPago"><span>Lo activo sin pago validado</span></label>' : '') +
+        ERR_HOJA + botones('<button class="btn block-btn" data-act="activar" data-id="' + esc(id) + '" data-aviso="' + (aviso ? 1 : 0) + '">Activar y crear su clave</button>');
+    }).catch(function (e) {
+      if (e && e.sesion) { manejarError(e); return; }
+      var cuerpo = $('actCuerpo'); if (cuerpo) cuerpo.innerHTML = '<div class="banner err" role="alert">' + esc(e.message) + '</div>' + botones('', 'Cerrar');
+    });
+  }
+  function activar(btn, id) {
+    var datos = { id: id, modalidad: $('aMod').value.trim(), sesiones: Number($('aSes').value), diaCorte: Number($('aCorte').value), ingreso: $('aIng').value };
+    if (btn.getAttribute('data-aviso') === '1') {
+      if (!$('aSinPago').checked) { toast('Marca la casilla para activarlo sin pago validado.'); return; }
+      datos.confirmarSinPago = true;
+    }
+    ocupar(btn, true);
+    api('admin_activar', datos).then(function (r) {
+      olvidar(['hoy', 'clientes', 'resumen'], id); mostrarClave(r, 'quedó activo'); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  // La clave se ve una sola vez: al cerrar la hoja se borra de la pantalla y de la memoria.
+  function mostrarClave(r, que) {
+    abrirHoja('<h2>' + esc(r.nombre || nombreDe(r.id)) + ' ' + que + '</h2>' +
+      '<p class="muted" style="margin-top:8px">Esta es su clave. <b>Solo la verás ahora</b>: envíale el mensaje antes de cerrar.</p>' +
+      '<div class="clave" id="claveNueva">' + esc(r.clave) + '</div>' +
+      '<textarea class="msg" id="msjTxt" readonly aria-label="Mensaje para el cliente">' + esc(r.mensaje) + '</textarea>' +
+      '<div class="actions"><button class="btn block-btn" data-act="copiar">Copiar mensaje</button>' +
+      (r.whatsapp ? '<a class="btn ghost block-btn" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener noreferrer">Abrir WhatsApp</a>' : '<p class="small muted">No hay un WhatsApp válido en su ficha: copia el mensaje y envíalo tú.</p>') +
+      '<button class="btn ghost block-btn" data-act="cerrarHoja">Ya la envié, cerrar</button></div>', true);
+    r.clave = null; r.mensaje = null; r.whatsapp = null;
+  }
+
+  // Renovar, pausar, reactivar y dar de baja
+  function confirmar(titulo, texto, act, id, etiqueta) {
+    abrirHoja('<h2>' + titulo + '</h2><p class="muted" style="margin-top:8px">' + texto + '</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="' + act + '" data-id="' + esc(id) + '">' + etiqueta + '</button>'));
+  }
+  function pedirRenovar(id) { confirmar('¿Crear una clave nueva?', 'La clave actual de ' + esc(nombreDe(id)) + ' deja de funcionar de inmediato. Tendrás que enviarle la nueva.', 'renovar', id, 'Crear clave nueva'); }
+  function pedirPausa(id) { confirmar('¿Pausar a ' + esc(nombreDe(id)) + '?', 'No podrá entrar a su app hasta que lo reactives. Su información se conserva.', 'pausar', id, 'Pausar'); }
+  function renovar(btn, id) {
+    ocupar(btn, true);
+    api('admin_renovarClave', { id: id }).then(function (r) { olvidar([], id); mostrarClave(r, 'tiene clave nueva'); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function cambioEstado(btn, accion, id, aviso, extra) {
+    ocupar(btn, true);
+    api(accion, Object.assign({ id: id }, extra || {})).then(function () {
+      cerrarHoja(); toast(aviso); olvidar(['hoy', 'clientes', 'resumen'], id); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function pedirBaja(id) {
+    abrirHoja('<h2>Dar de baja a ' + esc(nombreDe(id)) + '</h2><p class="muted" style="margin:8px 0 14px">Deja de entrar a su app. Su historial se conserva.</p>' +
+      '<textarea id="motivoTxt" maxlength="200" aria-label="Motivo de la baja" placeholder="Motivo, por ejemplo: se mudó de ciudad"></textarea>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="baja" data-id="' + esc(id) + '">Dar de baja</button>'));
+  }
+  function baja(btn, id) {
+    var motivo = ($('motivoTxt') || {}).value || '';
+    if (!motivo.trim()) { toast('Escribe el motivo de la baja.'); return; }
+    cambioEstado(btn, 'admin_baja', id, 'Cliente dado de baja.', { motivo: motivo });
+  }
+
   /* ---------- Sesión ---------- */
   function mostrarApp() { $('login').hidden = true; ir('hoy', true); }
   function cerrarSesion(mensaje) {
@@ -501,11 +728,31 @@
     else if (a === 'rechazarPago') rechazarPago(el, id);
     else if (a === 'cerrarHoja') cerrarHoja();
     else if (a === 'salir') cerrarSesion('');
+    else if (a === 'vista') { S.vista = el.getAttribute('data-v'); S.clienteSel = null; if (S.vista === 'prospectos') verProspectos(false); else dibujarClientes(S.datos.clientes || []); }
+    else if (a === 'nuevoProspecto') nuevoProspecto();
+    else if (a === 'guardarProspecto') guardarProspecto(el);
+    else if (a === 'abrirProspecto') abrirProspecto(id);
+    else if (a === 'ventaEstado') cambiarEstadoVenta(el, id, el.getAttribute('data-e'));
+    else if (a === 'pedirPerdido') pedirPerdido(id);
+    else if (a === 'perdido') perdido(el, id);
+    else if (a === 'ganarYAlta') ganarYAlta(el, id);
+    else if (a === 'pedirAlta') pedirAlta(id, el.getAttribute('data-n'));
+    else if (a === 'alta') alta(el, id);
+    else if (a === 'copiar') copiar();
+    else if (a === 'pedirActivar') pedirActivar(id);
+    else if (a === 'activar') activar(el, id);
+    else if (a === 'pedirRenovar') pedirRenovar(id);
+    else if (a === 'renovar') renovar(el, id);
+    else if (a === 'pedirPausa') pedirPausa(id);
+    else if (a === 'pausar') cambioEstado(el, 'admin_pausar', id, 'Cliente en pausa.');
+    else if (a === 'reactivar') cambioEstado(el, 'admin_reactivar', id, 'Cliente reactivado.');
+    else if (a === 'pedirBaja') pedirBaja(id);
+    else if (a === 'baja') baja(el, id);
   });
   document.addEventListener('input', function (e) { if (e.target && e.target.id === 'buscar') { S.q = e.target.value; pintarLista(); } });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target && e.target.id === 'clave') entrar();
-    if (e.key === 'Escape' && !$('sheet').hidden) cerrarHoja();
+    if (e.key === 'Escape' && !$('sheet').hidden && !S.hojaFija) cerrarHoja();
   });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible' || !clave || $('login').hidden === false) return;

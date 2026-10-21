@@ -81,3 +81,16 @@ a.btn{text-decoration:none;justify-content:center}
 .cm span{display:block;color:var(--muted);font-size:13px}
 .cm p{margin-top:6px;font-size:14.5px;line-height:1.5}
 .proof{margin-top:14px}.proof img{max-width:100%;border-radius:12px;display:block}
+/* entrada de clientes: prospectos, alta, activar y clave */
+.form label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.form input,.form select{display:block;width:100%;height:48px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);padding:0 14px;font:inherit;font-size:16px}
+.form .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet-body .actions{margin-top:20px}
+.check{display:flex;gap:12px;align-items:flex-start;margin-top:14px;font-size:14.5px;line-height:1.45}
+.check input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--green)}
+.banner.warn{color:var(--warn)}
+.clave{margin:16px 0 4px;padding:18px 12px;border-radius:16px;background:var(--bg);font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:.06em;text-align:center;overflow-wrap:anywhere;user-select:all}
+.msg{min-height:150px;font-size:14px;line-height:1.5}
+.estados{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.estados button{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:none;color:var(--ink);font-weight:600;font-size:13.5px}
+.add{display:flex;justify-content:flex-end;margin-top:14px}
