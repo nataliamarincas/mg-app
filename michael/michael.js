@@ -7,7 +7,7 @@
   var API_URL = 'https://script.google.com/macros/s/AKfycbyRzND4gkwm0CiIqCqVgAx0hARZvmSZpE9HqCbJ_QB6CUTv3aYlHpdFNk7M0-wYMa8bfw/exec';
   var LS_CLAVE = 'mgm_clave', LS_TEMA = 'mg_tema';
   var clave = leerLS(LS_CLAVE);
-  var S = { tab: 'hoy', datos: {}, planSel: null, semanaSel: null, clienteSel: null, cargado: {}, filtro: 'todos', q: '', fotos: {} };
+  var S = { tab: 'hoy', datos: {}, planSel: null, semanaSel: null, clienteSel: null, cargado: {}, filtro: 'todos', q: '', fotos: {}, gen: 0, precargado: false };
   var toastTimer = null, urlsPdf = [];
 
   var TABS = [
@@ -132,17 +132,34 @@
     if (tab === 'planes' && S.planSel) { cargarPlan(S.planSel, forzar); return; }
     if (tab === 'clientes' && S.clienteSel) { cargarCliente(S.clienteSel, forzar); return; }
     if (previo && !forzar) dibujar(tab, previo); else cargando(el);
+    // Si la pestaña se cargó hace menos de un minuto, se muestra tal cual y no se vuelve a pedir al puente.
+    if (previo && !forzar && Date.now() - (S.cargado[tab] || 0) < 60000) return;
     var def = TABS.filter(function (t) { return t.id === tab; })[0];
     api(def.accion).then(function (d) {
       S.datos[tab] = d; S.cargado[tab] = Date.now();
       if (S.tab === tab && !(tab === 'planes' && S.planSel) && !(tab === 'clientes' && S.clienteSel)) dibujar(tab, d);
+      precargar();
     }).catch(function (e) { if (S.tab === tab && (!previo || forzar)) manejarError(e, el); else if (e && e.sesion) manejarError(e); });
+  }
+  // Apenas carga la primera pestaña, trae las demás en segundo plano: así cambiar de pestaña es inmediato.
+  // Solo en memoria, nunca en el teléfono.
+  function precargar() {
+    if (S.precargado) return;
+    S.precargado = true;
+    var gen = S.gen;
+    TABS.forEach(function (t) {
+      if (S.datos[t.id]) return;
+      api(t.accion).then(function (d) {
+        if (S.gen !== gen || S.datos[t.id]) return;
+        S.datos[t.id] = d; S.cargado[t.id] = Date.now();
+      }).catch(function () { /* la pestaña se carga al abrirla */ });
+    });
   }
   function dibujar(tab, d) {
     if (tab === 'hoy') dibujarHoy(d); else if (tab === 'resumen') dibujarResumen(d); else if (tab === 'planes') dibujarPlanes(d);
     else if (tab === 'pagos') dibujarPagos(d); else dibujarClientes(d);
   }
-  function invalidar() { S.datos = {}; S.cargado = {}; }
+  function invalidar() { S.datos = {}; S.cargado = {}; S.gen++; S.precargado = false; }
 
   /* ---------- Hoy ---------- */
   function filaHoy(x, quien) {
@@ -440,7 +457,7 @@
   /* ---------- Sesión ---------- */
   function mostrarApp() { $('login').hidden = true; ir('hoy', true); }
   function cerrarSesion(mensaje) {
-    clave = null; escribirLS(LS_CLAVE, null); S.datos = {}; S.planSel = null; S.clienteSel = null; S.cargado = {}; S.fotos = {}; S.q = ''; S.filtro = 'todos';
+    clave = null; escribirLS(LS_CLAVE, null); S.datos = {}; S.planSel = null; S.clienteSel = null; S.cargado = {}; S.fotos = {}; S.q = ''; S.filtro = 'todos'; S.gen++; S.precargado = false;
     $('clave').value = ''; $('err').textContent = mensaje || ''; $('login').hidden = false; cerrarHoja();
   }
   function entrar() {
