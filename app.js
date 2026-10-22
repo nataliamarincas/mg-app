@@ -9,7 +9,7 @@
 
   var LS_CLAVE = 'mg_clave', LS_TEMA = 'mg_tema';
   var clave = leerLS(LS_CLAVE);
-  var S = { tab: 'inicio', datos: {}, sesionId: null, semanaSel: null, vista: 'front', ses: null, hechos: {}, kg: {}, restLeft: 0, ejercicioFuerza: null };
+  var S = { tab: 'inicio', datos: {}, sesionId: null, semanaSel: null, vista: 'front', ses: null, hechos: {}, kg: {}, restLeft: 0, ejercicioFuerza: null, guiaAbierta: {} };
   var restTimer = null, toastTimer = null, debounces = {};
 
   var TABS = [
@@ -226,6 +226,13 @@
       if (S.tab === 'entrenar') dibujarEntrenar();
     }).catch(function (e) { S.sesionId = null; manejarError(e, el); });
   }
+  // "Cómo se hace": plegable, y queda abierto aunque la tarjeta se vuelva a dibujar al marcar una serie.
+  var GUIA = [['posicion', 'Posición inicial'], ['movimiento', 'Movimiento'], ['respiracion', 'Respiración'], ['error', 'Evita']];
+  function guiaHtml(e) {
+    if (!e.guia) return '';
+    var filas = GUIA.filter(function (g) { return e.guia[g[0]]; }).map(function (g) { return '<div class="guia-fila"><b>' + g[1] + '</b><span>' + esc(e.guia[g[0]]) + '</span></div>'; }).join('');
+    return '<details class="guia"' + (S.guiaAbierta[e.nombre] ? ' open' : '') + '><summary data-act="guia" data-e="' + esc(e.nombre) + '">Cómo se hace</summary>' + filas + '</details>';
+  }
   function totalSeries() { return S.ses.ejercicios.reduce(function (a, e) { return a + e.series; }, 0); }
   function seriesHechas() { return Object.keys(S.hechos).filter(function (k) { return S.hechos[k]; }).length; }
   function dibujarEntrenar() {
@@ -246,7 +253,7 @@
       return '<div class="ex"><div class="ex-top"><div class="thumb">' + DUMB + '</div><div class="ex-info"><b>' + esc(e.nombre) + '</b><span>' + e.series + ' series de ' + esc(e.repeticiones) + (e.grupo ? ', ' + esc(String(e.grupo).toLowerCase()) : '') + '</span>' +
         (v ? '<div class="videolink"><a class="linkbtn" href="' + esc(v) + '" target="_blank" rel="noopener noreferrer">Ver video</a></div>' : '') +
         (e.nota ? '<div class="note" style="margin-top:4px">' + esc(e.nota) + '</div>' : '') + '</div>' +
-        '<label class="kg"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(S.kg[e.nombre]) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div><div class="sets">' + sets + '</div></div>';
+        '<label class="kg"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(S.kg[e.nombre]) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div>' + guiaHtml(e) + '<div class="sets">' + sets + '</div></div>';
     }).join('');
     el.innerHTML = '<h1>' + esc(s.nombre) + '</h1><p class="lead">Con calma y buena técnica. Marca cada serie cuando la termines.</p>' +
       '<div class="prog-line"><span><span class="num" style="font-size:28px">' + d + '</span> <span class="muted">de ' + total + ' series</span></span><span class="muted small">' + pct + '%</span></div>' +
@@ -484,6 +491,7 @@
     var el = e.target.closest('[data-act]'); if (!el) return;
     var a = el.getAttribute('data-act');
     if (a === 'entrar') entrar();
+    else if (a === 'guia') { var n = el.getAttribute('data-e'); S.guiaAbierta[n] = !el.parentNode.open; }
     else if (a === 'ir') ir(el.getAttribute('data-t'));
     else if (a === 'reintentar') cargarPantalla(S.tab, true);
     else if (a === 'aviso') toast(el.getAttribute('data-m'));

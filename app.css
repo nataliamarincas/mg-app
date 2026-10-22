@@ -136,6 +136,13 @@ main{flex:1;min-height:0;position:relative}
 .set[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
 .set svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
 .videolink{margin-top:2px;font-size:13px}
+.guia{margin:10px 0 0 66px;font-size:13.5px}
+.guia summary{display:inline-flex;align-items:center;min-height:32px;color:var(--accent);font-weight:600;cursor:pointer;list-style:none}
+.guia summary::-webkit-details-marker{display:none}
+.guia summary::after{content:"";width:7px;height:7px;margin-left:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .15s}
+.guia[open] summary::after{transform:rotate(-135deg) translateY(-1px)}
+.guia-fila{padding:8px 0;border-top:1px dashed var(--line);line-height:1.45}
+.guia-fila b{display:block;font-weight:600;font-size:12.5px;color:var(--muted);margin-bottom:1px}
 .rest{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--green);color:var(--on-green)}
 .rest[hidden]{display:none}
 .rest b{font-family:var(--display);font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;margin-left:8px}
