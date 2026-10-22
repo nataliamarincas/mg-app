@@ -404,6 +404,44 @@
 
   /* ---------- Seguimiento ---------- */
   var subidas = {};
+  // Tu cambio en fotos: una fecha por registro y comparar la primera con la última. Cada foto se pide solo al tocarla
+  // y queda en memoria mientras la app está abierta (nunca en el teléfono).
+  var ANGULOS = [['frontal', 'Frontal'], ['lateral', 'Lateral'], ['posterior', 'Posterior']], fotosVistas = {};
+  function conFotos(registros) { return (registros || []).filter(function (r) { return r.fecha && r.fotos && (r.fotos.frontal || r.fotos.lateral || r.fotos.posterior); }); }
+  function cambioEnFotos(registros) {
+    var lista = conFotos(registros);
+    if (!lista.length) return '';
+    var comparar = ANGULOS.filter(function (a) { return lista.filter(function (r) { return r.fotos[a[0]]; }).length > 1; })
+      .map(function (a) { return '<button class="btn ghost" data-act="compararFotos" data-a="' + a[0] + '">Comparar ' + a[1].toLowerCase() + '</button>'; }).join('');
+    return '<div class="block"><h2>Tu cambio en fotos</h2><div class="fechas">' +
+      lista.map(function (r) { return '<button data-act="verFotos" data-f="' + esc(r.fecha) + '">' + esc(fechaLarga(r.fecha)) + '</button>'; }).join('') + '</div>' +
+      (comparar ? '<div class="comparar">' + comparar + '</div>' : '') + '</div>';
+  }
+  function ponerFoto(fecha, angulo, destino) {
+    var k = fecha + '|' + angulo, poner = function (html) { var el = $(destino); if (el) el.innerHTML = html; };
+    var img = function (r) { return /^image\/(jpeg|png|webp)$/.test(r.mime) ? '<img alt="" src="data:' + r.mime + ';base64,' + r.datos + '">' : 'No se puede mostrar'; };
+    if (fotosVistas[k]) { poner(img(fotosVistas[k])); return; }
+    api('foto', { fecha: fecha, angulo: angulo }).then(function (r) {
+      fotosVistas[k] = r; var ks = Object.keys(fotosVistas); if (ks.length > 9) delete fotosVistas[ks[0]];
+      poner(img(r));
+    }).catch(function (e) { if (e && e.sesion) { manejarError(e); return; } poner(esc(e.message)); });
+  }
+  function verFotos(fecha) {
+    var r = conFotos((S.datos.seguimiento || {}).registros).filter(function (x) { return x.fecha === fecha; })[0];
+    if (!r) return;
+    abrirHoja('<h2>' + esc(fechaLarga(fecha)) + '</h2><div class="fotos">' + ANGULOS.map(function (a) {
+      return '<figure><div class="ph" id="ph-' + a[0] + '">' + (r.fotos[a[0]] ? '<div class="skel big"></div>' : 'Sin foto') + '</div><figcaption>' + a[1] + '</figcaption></figure>';
+    }).join('') + '</div><div style="margin-top:18px"><button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button></div>');
+    ANGULOS.forEach(function (a) { if (r.fotos[a[0]]) ponerFoto(fecha, a[0], 'ph-' + a[0]); });
+  }
+  function compararFotos(angulo) {
+    var regs = conFotos((S.datos.seguimiento || {}).registros).filter(function (r) { return r.fotos[angulo]; }).sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
+    if (regs.length < 2) return;
+    var a = regs[0], b = regs[regs.length - 1], nombre = ANGULOS.filter(function (x) { return x[0] === angulo; })[0][1];
+    abrirHoja('<h2>' + nombre + ': antes y ahora</h2><div class="fotos par"><figure><div class="ph" id="ph-a"><div class="skel big"></div></div><figcaption>' + esc(fechaLarga(a.fecha)) + '</figcaption></figure>' +
+      '<figure><div class="ph" id="ph-b"><div class="skel big"></div></div><figcaption>' + esc(fechaLarga(b.fecha)) + '</figcaption></figure></div><div style="margin-top:18px"><button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button></div>');
+    ponerFoto(a.fecha, angulo, 'ph-a'); ponerFoto(b.fecha, angulo, 'ph-b');
+  }
   function dibujarSeguimiento(d) {
     var el = $('s-seguimiento'), ultimo = d.registros[0], enviadas = (ultimo && ultimo.fecha === hoyStr()) ? ultimo.fotos : {};
     function slot(k, etiqueta) {
@@ -421,7 +459,8 @@
       return '<div class="kv"><span>' + esc(r.fecha ? fechaLarga(r.fecha) : '') + '</span><span>' + esc(partes.join(', ')) + '</span></div>';
     }).join('');
     el.innerHTML = '<h1>Seguimiento</h1><p class="lead">Aquí me ayudas a ver tu cambio. Sube tus fotos y medidas cada 4 semanas.</p>' +
-      '<div class="block"><h2>Tus fotos</h2><div class="slots">' + slot('frontal', 'Frontal') + slot('lateral', 'Lateral') + slot('posterior', 'Posterior') + '</div><p class="note">Solo yo veo tus fotos.</p></div>' +
+      '<div class="block"><h2>Tus fotos</h2><div class="slots">' + slot('frontal', 'Frontal') + slot('lateral', 'Lateral') + slot('posterior', 'Posterior') + '</div><p class="note">Solo tú y yo vemos tus fotos.</p></div>' +
+      cambioEnFotos(d.registros) +
       '<div class="block"><h2>Tus medidas</h2><div class="fields">' + campo('peso', 'Peso', 'kg', '68,2') + campo('cintura', 'Cintura', 'cm', '74') + campo('cadera', 'Cadera', 'cm', '98') + campo('brazo', 'Brazo', 'cm', '29') + campo('muslo', 'Muslo', 'cm', '56') + '</div>' +
       '<div style="margin-top:16px"><button class="btn block-btn" data-act="guardarMedidas">Guardar seguimiento</button></div></div>' +
       (hist ? '<div class="block"><h2>Tus últimos registros</h2>' + hist + '</div>' : '');
@@ -474,7 +513,7 @@
   /* ---------- Sesión ---------- */
   function mostrarApp() { $('login').hidden = true; ir('inicio', true); }
   function cerrarSesion(mensaje) {
-    pararDescanso(); clave = null; escribirLS(LS_CLAVE, null); S.datos = {}; S.ses = null; S.sesionId = null; subidas = {};
+    pararDescanso(); clave = null; escribirLS(LS_CLAVE, null); S.datos = {}; S.ses = null; S.sesionId = null; subidas = {}; fotosVistas = {};
     $('clave').value = ''; $('err').textContent = mensaje || ''; $('login').hidden = false;
   }
   function entrar() {
@@ -492,6 +531,8 @@
     var a = el.getAttribute('data-act');
     if (a === 'entrar') entrar();
     else if (a === 'guia') { var n = el.getAttribute('data-e'); S.guiaAbierta[n] = !el.parentNode.open; }
+    else if (a === 'verFotos') verFotos(el.getAttribute('data-f'));
+    else if (a === 'compararFotos') compararFotos(el.getAttribute('data-a'));
     else if (a === 'ir') ir(el.getAttribute('data-t'));
     else if (a === 'reintentar') cargarPantalla(S.tab, true);
     else if (a === 'aviso') toast(el.getAttribute('data-m'));

@@ -143,6 +143,16 @@ main{flex:1;min-height:0;position:relative}
 .guia[open] summary::after{transform:rotate(-135deg) translateY(-1px)}
 .guia-fila{padding:8px 0;border-top:1px dashed var(--line);line-height:1.45}
 .guia-fila b{display:block;font-weight:600;font-size:12.5px;color:var(--muted);margin-bottom:1px}
+.fechas{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.fechas button{min-height:38px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:none;color:var(--ink);font-weight:600;font-size:13.5px}
+.comparar{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.fotos.par{grid-template-columns:repeat(2,1fr)}
+.fotos figure{margin:0}
+.fotos figcaption{font-size:12px;color:var(--muted);margin-top:4px;text-align:center}
+.ph{aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;font-size:12px;color:var(--muted)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .skel{height:100%;width:100%;margin:0;border-radius:0}
 .rest{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--green);color:var(--on-green)}
 .rest[hidden]{display:none}
 .rest b{font-family:var(--display);font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;margin-left:8px}
