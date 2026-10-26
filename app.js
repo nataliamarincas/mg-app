@@ -247,7 +247,8 @@
     if (!e.alternativa) return '';
     return S.alt[e.nombre]
       ? '<div class="alt"><button class="linkbtn" data-act="volverEj" data-e="' + esc(e.nombre) + '">Volver a ' + esc(e.nombre) + '</button></div>'
-      : '<div class="alt">¿Máquina ocupada? <button class="linkbtn" data-act="usarAlt" data-e="' + esc(e.nombre) + '">Usa: ' + esc(e.alternativa.nombre) + '</button></div>';
+      : '<div class="alt">' + (e.lugar === 'Gimnasio' ? '¿Máquina ocupada? ' : '') + '<button class="linkbtn" data-act="usarAlt" data-e="' + esc(e.nombre) + '">' +
+        (e.lugar === 'Gimnasio' ? 'Usa: ' : 'Otra opción: ') + esc(e.alternativa.nombre) + '</button></div>';
   }
   function totalSeries() { return S.ses.ejercicios.reduce(function (a, e) { return a + e.series; }, 0); }
   function seriesHechas() { return Object.keys(S.hechos).filter(function (k) { return S.hechos[k]; }).length; }
