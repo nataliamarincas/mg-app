@@ -575,6 +575,7 @@
     if (t.hasAttribute && t.hasAttribute('data-foto') && t.files && t.files[0]) subirFoto(t);
     if (t.hasAttribute && t.hasAttribute('data-comprobante') && t.files && t.files[0]) subirComprobante(t);
     if (t.id === 'pArchivo') { var nf = t.files && t.files[0]; $('pArchivoTxt').textContent = nf ? 'Comprobante: ' + nf.name : 'Adjuntar comprobante (foto o PDF)'; }
+    if (t.id === 'pMedio') { $('pOtroBox').hidden = t.value !== 'Otro'; if (t.value === 'Otro') $('pOtro').focus(); }
   });
   document.addEventListener('input', function (e) {
     var t = e.target;
@@ -618,7 +619,7 @@
     }).catch(function (e) { cuerpo.innerHTML = CAM + '<span>Subir foto</span>'; manejarError(e); });
   }
   // Registrar el pago: valor, medio, fecha y comprobante (opcional si fue en efectivo).
-  var MEDIOS = ['Nequi', 'Daviplata', 'Bancolombia', 'Otro banco', 'Efectivo', 'Pago desde el exterior'];
+  var MEDIOS = ['Nequi', 'Daviplata', 'Nu', 'Bancolombia', 'Banco de Bogotá', 'Banco de Occidente', 'PayPal', 'Efectivo', 'Otro'];
   function hoyLocal() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function registrarPago(idPago) {
     var d = S.datos.pagos || {}, actual = (d.pagos || []).filter(function (p) { return p.id === idPago; })[0];
@@ -626,6 +627,7 @@
     abrirHoja('<h2>Registrar mi pago</h2><div class="form-pago">' +
       '<label for="pMonto">Valor que pagaste (pesos)</label><div class="in"><span>$</span><input id="pMonto" type="number" inputmode="numeric" min="1" step="1" value="' + esc(monto) + '"></div>' +
       '<label for="pMedio">¿Cómo pagaste?</label><select id="pMedio">' + (d.medios || MEDIOS).map(function (m) { return '<option>' + esc(m) + '</option>'; }).join('') + '</select>' +
+      '<div id="pOtroBox" hidden><label for="pOtro">¿Cuál?</label><input id="pOtro" type="text" maxlength="40" autocomplete="off" placeholder="Por ejemplo: Davivienda"></div>' +
       '<label for="pFecha">Fecha del pago</label><input id="pFecha" type="date" max="' + hoyLocal() + '" value="' + hoyLocal() + '">' +
       '<label class="file-pago"><input type="file" id="pArchivo" accept="image/*,application/pdf"><span id="pArchivoTxt">Adjuntar comprobante (foto o PDF)</span></label>' +
       '<p class="note">Si pagaste en efectivo, no hace falta comprobante.</p></div>' +
@@ -637,8 +639,11 @@
     if (!(Number(monto) > 0)) { toast('Escribe el valor que pagaste.'); return; }
     if (!fecha) { toast('Elige la fecha del pago.'); return; }
     if (fecha > hoyLocal()) { toast('La fecha no puede ser futura.'); return; }
+    var otro = medio === 'Otro' ? $('pOtro').value.trim() : '';
+    if (medio === 'Otro' && !otro) { toast('Escribe cuál medio usaste.'); $('pOtro').focus(); return; }
     if (!archivo && medio !== 'Efectivo') { toast('Adjunta la foto o el PDF del comprobante.'); return; }
     var datos = { monto: Number(monto), medio: medio, fecha: fecha };
+    if (otro) datos.medioOtro = otro;
     if (idPago) datos.idPago = idPago;
     btn.classList.add('busy');
     (archivo ? preparar(archivo).then(function (f) { datos.mime = f.mime; datos.datos = f.datos; }) : Promise.resolve())

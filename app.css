@@ -162,7 +162,7 @@ main{flex:1;min-height:0;position:relative}
 .form-pago .in{display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--line);border-radius:14px;height:50px;padding:0 14px}
 .form-pago .in span{color:var(--muted)}
 .form-pago .in input{flex:1;min-width:0;border:0;background:none;font-family:var(--display);font-weight:800;font-size:19px;padding:0;color:var(--ink)}
-.form-pago select,.form-pago input[type=date]{display:block;width:100%;height:48px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);padding:0 14px;font:inherit;font-size:16px;margin:0}
+.form-pago select,.form-pago input[type=date],.form-pago input[type=text]{display:block;width:100%;height:48px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);padding:0 14px;font:inherit;font-size:16px;margin:0}
 .form-pago .file-pago{position:relative;display:flex;align-items:center;justify-content:center;margin-top:18px;min-height:50px;border:1.5px dashed var(--line);border-radius:14px;color:var(--accent);font-weight:600;font-size:14.5px;text-align:center;padding:8px 12px;cursor:pointer}
 .form-pago .file-pago input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .rest{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--green);color:var(--on-green)}
