@@ -300,8 +300,37 @@
     }).join('') + '</div>' : '<p class="muted">Todavía no hay pagos.</p>') + '</div>';
     var docs = '<div class="block"><h2>Documentos</h2><div class="block" style="margin-top:0"><div class="kv"><span>Autorización de datos</span><span>' + (d.firmas.autorizacion ? 'Firmada' : 'Pendiente') + '</span></div><div class="kv"><span>Contrato</span><span>' + (d.firmas.contrato ? 'Firmado' : 'Pendiente') + '</span></div></div></div>';
     $('s-clientes').innerHTML = '<button class="back" data-act="volverClientes">' + ATRAS + 'Clientes</button><h1>' + esc(c.nombre) + '</h1>' +
-      '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa + kpis + plan + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
+      '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + etiquetaSemaforo(d.semaforo) + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa +
+      avanceIngreso(d) + kpis + plan + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
       (c.baja ? '<div class="banner" style="margin-top:24px">Se dio de baja el ' + esc(fechaLarga(c.baja)) + (c.motivoBaja ? '. Motivo: ' + esc(c.motivoBaja) : '') + '.</div>' : '');
+  }
+
+  /* ---------- Semáforo y avance del ingreso (solo el color; nunca las señales de salud) ---------- */
+  function etiquetaSemaforo(s) {
+    if (!s || !s.color) return '';
+    return '<span class="tag sem sem-' + esc(sinTildes(s.color)) + '">Semáforo ' + esc(s.color.toLowerCase()) + (s.definitivo ? '' : ' (sugerido)') + '</span> ';
+  }
+  function avanceIngreso(d) {
+    var c = d.cliente, ing = d.ingreso;
+    if (c.estado !== 'En ingreso' || !ing) return '';
+    var f = d.firmas, s = d.semaforo, p = ing.plan;
+    var semPaso = !s ? [false, 'Formulario y semáforo', 'Esperando que llene el formulario', 'Cliente']
+      : (s.color === 'Rojo' ? [false, 'Semáforo rojo' + (s.definitivo ? '' : ' (sugerido)'), 'Michael decide el color en la pestaña Revisión (computador). Con rojo no se activa.', 'Michael']
+        : [true, 'Formulario y semáforo', 'Semáforo ' + s.color.toLowerCase() + (s.definitivo ? ', decidido por Michael' : ', sugerido'), '']);
+    var planPaso = !p ? [false, 'Plan', 'Sin plan todavía', 'Nata']
+      : (p.estado === 'Aprobado' ? [true, 'Plan aprobado', '', ''] : (p.estado === 'Por aprobar' ? [false, 'Plan por aprobar', 'Revísalo y apruébalo', 'Michael'] : [false, 'Plan en borrador', 'Nata lo prepara desde el computador', 'Nata']));
+    var pasos = [
+      [f.autorizacion, 'Autorización de datos', f.autorizacion ? 'Firmada' : 'Pendiente: la firma al llenar el formulario', f.autorizacion ? '' : 'Cliente'],
+      [f.contrato, 'Contrato', f.contrato ? 'Firmado' : 'Pendiente: lo firma al llenar el formulario', f.contrato ? '' : 'Cliente'],
+      semPaso, planPaso,
+      [ing.pagoValidado, 'Primer pago', ing.pagoValidado ? 'Validado' : 'Sin pago validado (no impide activarlo)', '']
+    ];
+    var listo = f.autorizacion && f.contrato && s && s.color !== 'Rojo' && p && p.estado === 'Aprobado';
+    var boton = p && p.estado === 'Por aprobar' ? '<button class="btn block-btn" data-act="abrirPlan" data-id="' + esc(p.id) + '">Revisar y aprobar su plan</button>' : '';
+    return '<div class="block"><h2>Avance del ingreso</h2>' + (listo ? '<p class="muted" style="margin-top:4px">Todo listo: actívalo abajo, en Acciones.</p>' : '') + '<div class="pasos">' + pasos.map(function (x) {
+      return '<div class="paso' + (x[0] ? ' ok' : '') + '"><span class="ico" aria-hidden="true">' + (x[0] ? '✓' : '') + '</span><span class="t"><b>' + esc(x[1]) + '</b>' + (x[2] ? '<span>' + esc(x[2]) + '</span>' : '') + '</span>' +
+        (x[3] ? '<span class="quien">' + esc(x[3]) + '</span>' : '') + '</div>';
+    }).join('') + '</div>' + (boton ? '<div class="actions" style="margin-top:14px">' + boton + '</div>' : '') + '</div>';
   }
 
   /* ---------- Fotos y comprobantes dentro del panel ---------- */
