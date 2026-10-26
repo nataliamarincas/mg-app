@@ -6,6 +6,8 @@
 
   var API_URL = 'https://script.google.com/macros/s/AKfycbyRzND4gkwm0CiIqCqVgAx0hARZvmSZpE9HqCbJ_QB6CUTv3aYlHpdFNk7M0-wYMa8bfw/exec';
   var WHATSAPP_MICHAEL = '573229082935'; // WhatsApp de Michael con indicativo de país (57), sin signos
+  // Redes de Michael (públicas). Se muestran en Perfil.
+  var REDES = [['Instagram', 'https://www.instagram.com/mg.entrenadordeportivo'], ['TikTok', 'https://www.tiktok.com/@mg_entrenador'], ['Facebook', 'https://www.facebook.com/share/1FxK4uV8w9/']];
 
   var LS_CLAVE = 'mg_clave', LS_TEMA = 'mg_tema';
   var clave = leerLS(LS_CLAVE);
@@ -517,6 +519,8 @@
       '<div class="block"><h2>Apariencia</h2><div class="seg" style="margin-top:0" role="group" aria-label="Apariencia">' + tb('auto', 'Automática') + tb('dark', 'Oscura') + tb('light', 'Clara') + '</div></div>' +
       '<div class="block">' + (WHATSAPP_MICHAEL ? '<a class="btn block-btn" href="https://wa.me/' + esc(WHATSAPP_MICHAEL) + '" target="_blank" rel="noopener noreferrer">Escribir a Michael</a><div style="height:10px"></div>' : '') +
       '<button class="btn ghost block-btn" data-act="salir">Cerrar sesión</button></div>' +
+      '<div class="block"><h2>Sígueme</h2><p class="muted small" style="margin-top:-6px">Tips, rutinas y novedades.</p><div class="redes">' +
+        REDES.map(function (r) { return '<a class="btn ghost" href="' + esc(r[1]) + '" target="_blank" rel="noopener noreferrer">' + esc(r[0]) + '</a>'; }).join('') + '</div></div>' +
       '<div class="block"><p class="note">Para tenerla como app: en el iPhone, toca Compartir y luego Añadir a pantalla de inicio. En Android, abre el menú del navegador y elige Instalar aplicación.</p></div>';
   }
 
