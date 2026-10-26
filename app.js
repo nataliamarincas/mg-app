@@ -11,7 +11,7 @@
 
   var LS_CLAVE = 'mg_clave', LS_TEMA = 'mg_tema';
   var clave = leerLS(LS_CLAVE);
-  var S = { tab: 'inicio', datos: {}, sesionId: null, semanaSel: null, vista: 'front', ses: null, hechos: {}, kg: {}, restLeft: 0, ejercicioFuerza: null, guiaAbierta: {} };
+  var S = { tab: 'inicio', datos: {}, sesionId: null, semanaSel: null, vista: 'front', ses: null, hechos: {}, kg: {}, restLeft: 0, ejercicioFuerza: null, guiaAbierta: {}, alt: {} };
   var restTimer = null, toastTimer = null, debounces = {};
 
   var TABS = [
@@ -220,10 +220,12 @@
     if (S.ses && S.ses.sesion.id === S.sesionId && !forzar) { dibujarEntrenar(); return; }
     cargando(el);
     api('sesion', { idSesion: S.sesionId }).then(function (r) {
-      S.ses = r; S.hechos = {}; S.kg = {};
+      S.ses = r; S.hechos = {}; S.kg = {}; S.alt = {};
       r.hechos.forEach(function (h) { S.hechos[h.ejercicio + '|' + h.serie] = true; if (h.peso !== '' && h.peso !== null) S.kg[h.ejercicio] = h.peso; });
       r.ejercicios.forEach(function (e) {
         if (S.kg[e.nombre] === undefined) S.kg[e.nombre] = e.ultimoPeso !== null ? e.ultimoPeso : (e.pesoSugerido !== '' && e.pesoSugerido !== null ? e.pesoSugerido : '');
+        // Si ya marcó series con la alternativa, se sigue mostrando la alternativa
+        if (e.alternativa && r.hechos.some(function (h) { return h.ejercicio === e.alternativa.nombre; })) S.alt[e.nombre] = true;
       });
       if (S.tab === 'entrenar') dibujarEntrenar();
     }).catch(function (e) { S.sesionId = null; manejarError(e, el); });
@@ -235,6 +237,18 @@
     var filas = GUIA.filter(function (g) { return e.guia[g[0]]; }).map(function (g) { return '<div class="guia-fila"><b>' + g[1] + '</b><span>' + esc(e.guia[g[0]]) + '</span></div>'; }).join('');
     return '<details class="guia"' + (S.guiaAbierta[e.nombre] ? ' open' : '') + '><summary data-act="guia" data-e="' + esc(e.nombre) + '">Cómo se hace</summary>' + filas + '</details>';
   }
+  // Ejercicio alternativo (máquina ocupada): misma cantidad de series y repeticiones; las series se anotan con su nombre.
+  function vistaEj(e) {
+    if (!(S.alt[e.nombre] && e.alternativa)) return e;
+    var a = e.alternativa;
+    return { nombre: a.nombre, grupo: a.grupo, video: a.video, guia: a.guia, series: e.series, repeticiones: e.repeticiones, descanso: e.descanso, nota: '', original: e.nombre };
+  }
+  function cambioAlt(e) {
+    if (!e.alternativa) return '';
+    return S.alt[e.nombre]
+      ? '<div class="alt"><button class="linkbtn" data-act="volverEj" data-e="' + esc(e.nombre) + '">Volver a ' + esc(e.nombre) + '</button></div>'
+      : '<div class="alt">¿Máquina ocupada? <button class="linkbtn" data-act="usarAlt" data-e="' + esc(e.nombre) + '">Usa: ' + esc(e.alternativa.nombre) + '</button></div>';
+  }
   function totalSeries() { return S.ses.ejercicios.reduce(function (a, e) { return a + e.series; }, 0); }
   function seriesHechas() { return Object.keys(S.hechos).filter(function (k) { return S.hechos[k]; }).length; }
   function dibujarEntrenar() {
@@ -244,18 +258,18 @@
         '<div style="margin-top:24px"><button class="btn" data-act="ir" data-t="progreso">Ver mi progreso</button></div></div>';
       return;
     }
-    var top = el.scrollTop, d = seriesHechas(), total = totalSeries(), pct = total ? Math.round(d / total * 100) : 0;
-    var lista = r.ejercicios.map(function (e) {
-      var sets = '';
+    var top = el.scrollTop, d = seriesHechas(), total = totalSeries(), pct = total ? Math.min(100, Math.round(d / total * 100)) : 0;
+    var lista = r.ejercicios.map(function (e0) {
+      var e = vistaEj(e0), sets = '';
       for (var i = 1; i <= e.series; i++) {
         var on = !!S.hechos[e.nombre + '|' + i];
         sets += '<button class="set" data-act="serie" data-e="' + esc(e.nombre) + '" data-i="' + i + '" aria-pressed="' + on + '" aria-label="Serie ' + i + ' de ' + esc(e.nombre) + '">' + (on ? CHECK : i) + '</button>';
       }
-      var v = urlSegura(e.video);
+      var v = urlSegura(e.video), kg = S.kg[e.nombre] === undefined ? '' : S.kg[e.nombre];
       return '<div class="ex"><div class="ex-top"><div class="thumb">' + DUMB + '</div><div class="ex-info"><b>' + esc(e.nombre) + '</b><span>' + e.series + ' series de ' + esc(e.repeticiones) + (e.grupo ? ', ' + esc(String(e.grupo).toLowerCase()) : '') + '</span>' +
         (v ? '<div class="videolink"><a class="linkbtn" href="' + esc(v) + '" target="_blank" rel="noopener noreferrer">Ver video</a></div>' : '') +
-        (e.nota ? '<div class="note" style="margin-top:4px">' + esc(e.nota) + '</div>' : '') + '</div>' +
-        '<label class="kg"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(S.kg[e.nombre]) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div>' + guiaHtml(e) + '<div class="sets">' + sets + '</div></div>';
+        (e.nota ? '<div class="note" style="margin-top:4px">' + esc(e.nota) + '</div>' : '') + cambioAlt(e0) + '</div>' +
+        '<label class="kg"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(kg) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div>' + guiaHtml(e) + '<div class="sets">' + sets + '</div></div>';
     }).join('');
     el.innerHTML = '<h1>' + esc(s.nombre) + '</h1><p class="lead">Con calma y buena técnica. Marca cada serie cuando la termines.</p>' +
       '<div class="prog-line"><span><span class="num" style="font-size:28px">' + d + '</span> <span class="muted">de ' + total + ' series</span></span><span class="muted small">' + pct + '%</span></div>' +
@@ -264,7 +278,7 @@
     el.scrollTop = top;
   }
   function alternarSerie(nombre, i) {
-    var r = S.ses, e = r.ejercicios.filter(function (x) { return x.nombre === nombre; })[0];
+    var r = S.ses, e = r.ejercicios.filter(function (x) { return x.nombre === nombre || (x.alternativa && x.alternativa.nombre === nombre); })[0];
     if (!e) return;
     var k = nombre + '|' + i, prev = !!S.hechos[k], nuevo = !prev;
     S.hechos[k] = nuevo; dibujarEntrenar();
@@ -545,6 +559,8 @@
     var a = el.getAttribute('data-act');
     if (a === 'entrar') entrar();
     else if (a === 'guia') { var n = el.getAttribute('data-e'); S.guiaAbierta[n] = !el.parentNode.open; }
+    else if (a === 'usarAlt') { S.alt[el.getAttribute('data-e')] = true; dibujarEntrenar(); }
+    else if (a === 'volverEj') { delete S.alt[el.getAttribute('data-e')]; dibujarEntrenar(); }
     else if (a === 'registrarPago') registrarPago(el.getAttribute('data-id'));
     else if (a === 'enviarPago') enviarPago(el, el.getAttribute('data-id'));
     else if (a === 'verFotos') verFotos(el.getAttribute('data-f'));
@@ -588,7 +604,7 @@
       clearTimeout(debounces[nombre]);
       debounces[nombre] = setTimeout(function () {
         // si ya hay series marcadas de este ejercicio, se actualiza el peso registrado
-        var ej = S.ses && S.ses.ejercicios.filter(function (x) { return x.nombre === nombre; })[0]; if (!ej) return;
+        var ej = S.ses && S.ses.ejercicios.filter(function (x) { return x.nombre === nombre || (x.alternativa && x.alternativa.nombre === nombre); })[0]; if (!ej) return;
         for (var i = 1; i <= ej.series; i++) {
           if (S.hechos[nombre + '|' + i]) api('registrarSerie', { idSesion: S.ses.sesion.id, ejercicio: nombre, serie: i, repeticiones: ej.repeticiones, peso: S.kg[nombre] }).catch(function () {});
         }

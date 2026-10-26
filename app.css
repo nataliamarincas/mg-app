@@ -136,6 +136,8 @@ main{flex:1;min-height:0;position:relative}
 .set[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
 .set svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
 .videolink{margin-top:2px;font-size:13px}
+.alt{margin-top:6px;font-size:13px;color:var(--muted)}
+.alt .linkbtn{font-size:13px}
 .guia{margin:10px 0 0 66px;font-size:13.5px}
 .guia summary{display:inline-flex;align-items:center;min-height:32px;color:var(--accent);font-weight:600;cursor:pointer;list-style:none}
 .guia summary::-webkit-details-marker{display:none}
