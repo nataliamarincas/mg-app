@@ -314,11 +314,13 @@
     var c = d.cliente, ing = d.ingreso;
     if (c.estado !== 'En ingreso' || !ing) return '';
     var f = d.firmas, s = d.semaforo, p = ing.plan;
+    var bSem = s ? '<button class="linkbtn" data-act="pedirSemaforo" data-id="' + esc(c.id) + '">' + (s.definitivo ? 'Cambiar semáforo' : 'Decidir semáforo') + '</button>' : '';
     var semPaso = !s ? [false, 'Formulario y semáforo', 'Esperando que llene el formulario', 'Cliente']
-      : (s.color === 'Rojo' ? [false, 'Semáforo rojo' + (s.definitivo ? '' : ' (sugerido)'), 'Michael decide el color en la pestaña Revisión (computador). Con rojo no se activa.', 'Michael']
-        : [true, 'Formulario y semáforo', 'Semáforo ' + s.color.toLowerCase() + (s.definitivo ? ', decidido por Michael' : ', sugerido'), '']);
+      : (s.color === 'Rojo' ? [false, 'Semáforo rojo' + (s.definitivo ? '' : ' (sugerido)'), 'Con rojo no se prepara el plan ni se activa. Michael decide el color definitivo.', 'Michael', bSem]
+        : [!!s.definitivo, 'Formulario y semáforo', 'Semáforo ' + s.color.toLowerCase() + (s.definitivo ? ', decidido por Michael' : ', sugerido: confírmalo'), s.definitivo ? '' : 'Michael', bSem]);
+    var bPlan = p && p.estado === 'Borrador' && s && s.color !== 'Rojo' ? '<button class="linkbtn" data-act="prepararPlan" data-id="' + esc(c.id) + '">Preparar plan</button>' : '';
     var planPaso = !p ? [false, 'Plan', 'Sin plan todavía', 'Nata']
-      : (p.estado === 'Aprobado' ? [true, 'Plan aprobado', '', ''] : (p.estado === 'Por aprobar' ? [false, 'Plan por aprobar', 'Revísalo y apruébalo', 'Michael'] : [false, 'Plan en borrador', 'Nata lo prepara desde el computador', 'Nata']));
+      : (p.estado === 'Aprobado' ? [true, 'Plan aprobado', '', ''] : (p.estado === 'Por aprobar' ? [false, 'Plan por aprobar', 'Revísalo y apruébalo', 'Michael'] : [false, 'Plan en borrador', 'Prepáralo aquí o desde el computador', 'Michael o Nata', bPlan]));
     var pasos = [
       [f.autorizacion, 'Autorización de datos', f.autorizacion ? 'Firmada' : 'Pendiente: la firma al llenar el formulario', f.autorizacion ? '' : 'Cliente'],
       [f.contrato, 'Contrato', f.contrato ? 'Firmado' : 'Pendiente: lo firma al llenar el formulario', f.contrato ? '' : 'Cliente'],
@@ -328,9 +330,73 @@
     var listo = f.autorizacion && f.contrato && s && s.color !== 'Rojo' && p && p.estado === 'Aprobado';
     var boton = p && p.estado === 'Por aprobar' ? '<button class="btn block-btn" data-act="abrirPlan" data-id="' + esc(p.id) + '">Revisar y aprobar su plan</button>' : '';
     return '<div class="block"><h2>Avance del ingreso</h2>' + (listo ? '<p class="muted" style="margin-top:4px">Todo listo: actívalo abajo, en Acciones.</p>' : '') + '<div class="pasos">' + pasos.map(function (x) {
-      return '<div class="paso' + (x[0] ? ' ok' : '') + '"><span class="ico" aria-hidden="true">' + (x[0] ? '✓' : '') + '</span><span class="t"><b>' + esc(x[1]) + '</b>' + (x[2] ? '<span>' + esc(x[2]) + '</span>' : '') + '</span>' +
+      return '<div class="paso' + (x[0] ? ' ok' : '') + '"><span class="ico" aria-hidden="true">' + (x[0] ? '✓' : '') + '</span><span class="t"><b>' + esc(x[1]) + '</b>' + (x[2] ? '<span>' + esc(x[2]) + '</span>' : '') + (x[4] ? '<span class="paso-act">' + x[4] + '</span>' : '') + '</span>' +
         (x[3] ? '<span class="quien">' + esc(x[3]) + '</span>' : '') + '</div>';
     }).join('') + '</div>' + (boton ? '<div class="actions" style="margin-top:14px">' + boton + '</div>' : '') + '</div>';
+  }
+
+  /* ---------- Semáforo y plan desde el celular (entrega 3) ---------- */
+  function fichaDe(id) { return (S.datos.cliente || {})[id] || null; }
+  function pedirSemaforo(id) {
+    var d = fichaDe(id), s = d && d.semaforo;
+    if (!s) return;
+    abrirHoja('<h2>Semáforo de ' + esc(d.cliente.nombre) + '</h2>' +
+      '<div class="block" style="margin-top:12px"><div class="kv"><span>Sugerido</span><span>' + esc(s.sugerido || '—') + '</span></div>' +
+      '<div class="kv"><span>Señales para revisar</span><span>' + esc(s.senales || 'Ninguna') + '</span></div>' +
+      (s.definitivo ? '<div class="kv"><span>Decidido</span><span>' + esc(s.color) + '</span></div>' : '') + '</div>' +
+      '<h3>Color definitivo</h3><div class="seg" role="group" aria-label="Color">' + ['Verde', 'Amarillo', 'Rojo'].map(function (k) {
+        return '<button data-act="colorSem" data-c="' + k + '" aria-pressed="' + (k === (s.definitivo ? s.color : s.sugerido)) + '">' + k + '</button>';
+      }).join('') + '</div>' +
+      '<textarea id="notaSem" maxlength="300" style="margin-top:14px" aria-label="Nota" placeholder="Nota opcional, por ejemplo: pedirle autorización médica"></textarea>' +
+      '<p class="small muted">Con rojo no se prepara el plan ni se activa. Esta decisión es tuya; no es un diagnóstico.</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="guardarSemaforo" data-id="' + esc(id) + '">Guardar</button>'));
+  }
+  function guardarSemaforo(btn, id) {
+    var el = document.querySelector('#sheet [data-act="colorSem"][aria-pressed="true"]');
+    if (!el) { toast('Elige un color.'); return; }
+    ocupar(btn, true);
+    api('admin_semaforo', { id: id, color: el.getAttribute('data-c'), nota: ($('notaSem') || {}).value || '' }).then(function (r) {
+      cerrarHoja(); toast('Semáforo en ' + r.color.toLowerCase() + '.'); olvidar(['hoy', 'clientes'], id); recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function proximoLunes() {
+    var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function prepararPlan(id) {
+    abrirHoja('<h2>Ficha para el plan</h2><div id="fichaCuerpo"><div class="skel big" style="margin-top:16px"></div></div>');
+    api('admin_fichaPlan', { id: id }).then(function (r) {
+      var cuerpo = $('fichaCuerpo'); if (!cuerpo) return;
+      cuerpo.innerHTML = '<ol class="pasos-lista"><li>Copia la ficha.</li><li>Pégala en un chat nuevo del Proyecto MG en Claude.</li><li>Copia su respuesta completa y cárgala aquí.</li></ol>' +
+        '<p class="small muted">Antes de pegar, revisa las respuestas escritas a mano: si el cliente puso su nombre o un teléfono, bórralos.</p>' +
+        '<textarea class="msg" id="msjTxt" readonly aria-label="Ficha para el plan">' + esc(r.texto) + '</textarea>' +
+        '<div class="actions"><button class="btn block-btn" data-act="copiar">Copiar ficha</button>' +
+        '<button class="btn ghost block-btn" data-act="pedirCargarPlan" data-id="' + esc(id) + '">Ya tengo la respuesta: cargar plan</button>' +
+        '<button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button></div>';
+    }).catch(function (e) {
+      if (e && e.sesion) { manejarError(e); return; }
+      var cuerpo = $('fichaCuerpo'); if (cuerpo) cuerpo.innerHTML = '<div class="banner err" role="alert">' + esc(e.message) + '</div>' + botones('', 'Cerrar');
+    });
+  }
+  function pedirCargarPlan(id) {
+    abrirHoja('<h2>Cargar el plan</h2><div class="form"><label for="planIni">Inicio del ciclo</label><input id="planIni" type="date" value="' + proximoLunes() + '">' +
+      '<p class="small muted" style="margin-top:6px">El corte queda 30 días después. Las sesiones se ubican desde esta fecha.</p>' +
+      '<label for="planTxt">Respuesta completa (empieza con { y termina con })</label></div>' +
+      '<textarea class="msg" id="planTxt" aria-label="Respuesta con el plan" placeholder="Pega aquí la respuesta"></textarea>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="cargarPlan" data-id="' + esc(id) + '">Cargar plan</button>'));
+  }
+  function cargarPlanPanel(btn, id) {
+    var texto = ($('planTxt') || {}).value || '';
+    if (!texto.trim()) { toast('Pega la respuesta primero.'); return; }
+    ocupar(btn, true);
+    api('admin_cargarPlan', { id: id, texto: texto, inicio: $('planIni').value }).then(function (r) {
+      olvidar(['hoy', 'clientes', 'planes'], id);
+      abrirHoja('<h2>Plan cargado</h2><p class="muted" style="margin-top:8px">Quedó Por aprobar con ' + plural(r.sesiones, 'sesión', 'sesiones') + ' y ' + plural(r.ejercicios, 'ejercicio', 'ejercicios') + '. Revísalo antes de aprobarlo.</p>' +
+        (r.notas ? '<h3>Notas para ti</h3><div class="notes">' + esc(r.notas) + '</div>' : '') +
+        (r.avisos.length ? '<h3>Avisos</h3><div class="notes">' + esc(r.avisos.join('\n')) + '</div>' : '') +
+        '<div class="actions"><button class="btn block-btn" data-act="abrirPlan" data-id="' + esc(r.idPlan) + '">Revisar y aprobar</button><button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button></div>');
+      recargarActual();
+    }).catch(function (e) { fallaEnHoja(btn, e); });
   }
 
   /* ---------- Fotos y comprobantes dentro del panel ---------- */
@@ -775,6 +841,12 @@
     else if (a === 'pedirPausa') pedirPausa(id);
     else if (a === 'pausar') cambioEstado(el, 'admin_pausar', id, 'Cliente en pausa.');
     else if (a === 'reactivar') cambioEstado(el, 'admin_reactivar', id, 'Cliente reactivado.');
+    else if (a === 'pedirSemaforo') pedirSemaforo(id);
+    else if (a === 'colorSem') { Array.prototype.forEach.call(document.querySelectorAll('#sheet [data-act="colorSem"]'), function (b) { b.setAttribute('aria-pressed', String(b === el)); }); }
+    else if (a === 'guardarSemaforo') guardarSemaforo(el, id);
+    else if (a === 'prepararPlan') prepararPlan(id);
+    else if (a === 'pedirCargarPlan') pedirCargarPlan(id);
+    else if (a === 'cargarPlan') cargarPlanPanel(el, id);
     else if (a === 'pedirBaja') pedirBaja(id);
     else if (a === 'baja') baja(el, id);
   });
