@@ -282,8 +282,10 @@
       '<div class="kv"><span>Sesiones hechas</span><span>' + p.hechas + ' de ' + p.total + '</span></div></div>' +
       (p.adherencia !== null ? '<div class="bar' + (p.adherencia < 0.6 ? ' low' : '') + '" role="img" aria-label="Adherencia ' + pct(p.adherencia) + '"><i style="width:' + Math.min(100, Math.round(p.adherencia * 100)) + '%"></i></div>' : '') +
       '<div style="margin-top:12px"><button class="btn ghost" data-act="abrirPlan" data-id="' + esc(p.id) + '">Ver el plan</button></div></div>' : '<div class="block"><h2>Plan vigente</h2><p class="muted">Todavía no tiene un plan aprobado.</p></div>';
-    var filas = [['Peso', 'peso', 'kg'], ['Cintura', 'cintura', 'cm'], ['Cadera', 'cadera', 'cm'], ['Brazo', 'brazo', 'cm'], ['Muslo', 'muslo', 'cm']].map(function (m) {
-      var con = seg.filter(function (r) { return r[m[1]] !== '' && r[m[1]] !== null; });
+    var filas = [['Peso', 'peso', 'kg'], ['Cintura', 'cintura', 'cm'], ['Cadera', 'cadera', 'cm'], ['Abdomen', 'abdomen', 'cm'], ['Pecho', 'pecho', 'cm'], ['Hombros', 'hombros', 'cm'],
+      ['Brazo derecho', 'brazo', 'cm'], ['Brazo izquierdo', 'brazoIzq', 'cm'], ['Muslo derecho', 'muslo', 'cm'], ['Muslo izquierdo', 'musloIzq', 'cm'],
+      ['Pantorrilla derecha', 'pantorrilla', 'cm'], ['Pantorrilla izquierda', 'pantorrillaIzq', 'cm']].map(function (m) {
+      var con = seg.filter(function (r) { return r[m[1]] !== '' && r[m[1]] !== null && r[m[1]] !== undefined; });
       if (!con.length) return '';
       var ult = con[con.length - 1][m[1]], txt = con.length > 1 ? delta(con[0][m[1]], ult, m[2]) : num(ult) + ' ' + m[2];
       return '<div class="kv"><span>' + m[0] + '</span><span class="delta">' + esc(txt) + '</span></div>';
@@ -558,9 +560,16 @@
     var p = buscarPago(id);
     if (!p) { toast('Actualicé la lista de pagos.'); ir('pagos', true); return; }
     var original = p.moneda && p.moneda !== 'COP' ? '<div class="kv"><span>Pagó en</span><span>' + esc(p.moneda) + (p.montoOriginal !== '' ? ' ' + esc(num(p.montoOriginal)) : '') + '</span></div>' : '';
+    // Lo que reportó el cliente al registrar el pago (valor, medio y fecha).
+    var reportado = (p.montoReportado !== '' && p.montoReportado !== undefined && p.montoReportado !== null ? '<div class="kv"><span>El cliente reportó</span><span>' + esc(dinero(p.montoReportado)) + '</span></div>' : '') +
+      (p.medio ? '<div class="kv"><span>Medio</span><span>' + esc(p.medio) + '</span></div>' : '') +
+      (p.fechaPago ? '<div class="kv"><span>Fecha del pago</span><span>' + esc(fechaLarga(p.fechaPago)) + '</span></div>' : '') +
+      (p.notas && /reportó/.test(p.notas) ? '<div class="kv"><span>Nota</span><span>' + esc(p.notas) + '</span></div>' : '');
+    var sugerido = Number(p.montoReportado) > 0 ? Number(p.montoReportado) : (Number(p.monto) || '');
     var accion = '';
     if (p.estado === 'Pendiente de validación') {
-      accion = '<label class="small muted" for="montoRec">Monto recibido en pesos</label><div class="moneyin"><span>$</span><input id="montoRec" type="number" inputmode="numeric" min="0" step="1" value="' + esc(Number(p.monto) || '') + '"></div>' +
+      accion = (p.medio === 'Efectivo' && !p.comprobante ? '<div class="banner warn" style="margin:0 0 14px">Pagó en efectivo: valida solo si ya recibiste el dinero.</div>' : '') +
+        '<label class="small muted" for="montoRec">Monto recibido en pesos</label><div class="moneyin"><span>$</span><input id="montoRec" type="number" inputmode="numeric" min="0" step="1" value="' + esc(sugerido) + '"></div>' +
         '<button class="btn block-btn" data-act="validarPago" data-id="' + esc(p.id) + '">Validar pago</button><div style="height:10px"></div>' +
         '<button class="btn ghost block-btn" data-act="pedirRechazo" data-id="' + esc(p.id) + '">Rechazar</button>';
     } else {
@@ -568,7 +577,7 @@
     }
     abrirHoja('<h2>' + esc(p.cliente) + '</h2><p style="margin-top:4px"><span class="tag ' + clasePago(p.estado) + '">' + esc(p.estado) + '</span></p>' +
       '<div class="block" style="margin-top:14px"><div class="kv"><span>Corte</span><span>' + esc(p.corte ? fechaLarga(p.corte) : '—') + '</span></div>' +
-      '<div class="kv"><span>Monto</span><span>' + esc(dinero(p.monto)) + '</span></div>' + original +
+      '<div class="kv"><span>Valor del paquete</span><span>' + esc(dinero(p.monto)) + '</span></div>' + original + reportado +
       '<div class="kv"><span>Comprobante</span><span>' + (p.comprobante ? '<button class="linkbtn" data-act="verComprobante" data-id="' + esc(p.id) + '">Ver aquí</button>' : 'Sin archivo') + '</span></div></div>' +
       '<div style="margin-top:18px">' + accion + '</div>');
   }

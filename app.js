@@ -449,9 +449,18 @@
       var cuerpo = subidas[k] && subidas[k].vista ? '<img src="' + subidas[k].vista + '" alt="Foto ' + etiqueta.toLowerCase() + '"><em>Enviada</em>' : (listo ? CAM + '<span class="ok">Enviada</span>' : CAM + '<span>Subir foto</span>');
       return '<div><label class="slot' + (listo ? ' sent' : '') + '"><input type="file" accept="image/*" data-foto="' + k + '" aria-label="Subir foto ' + etiqueta.toLowerCase() + '"><span class="slot-body">' + cuerpo + '</span></label><div class="slot-name">' + etiqueta + '</div></div>';
     }
-    function campo(k, etiqueta, unidad, ph) {
-      return '<div class="field"><label for="m-' + k + '">' + etiqueta + '</label><div class="in"><input id="m-' + k + '" type="number" inputmode="decimal" step="0.1" placeholder="' + ph + '" data-m="' + k + '"><span>' + unidad + '</span></div></div>';
+    function campo(k, etiqueta, unidad, ph, como) {
+      return '<div class="field"><label for="m-' + k + '">' + etiqueta + '</label><div class="in"><input id="m-' + k + '" type="number" inputmode="decimal" step="0.1" placeholder="' + ph + '" data-m="' + k + '"><span>' + unidad + '</span></div>' +
+        (como ? '<p class="como">' + como + '</p>' : '') + '</div>';
     }
+    // Principales arriba; el resto en "Más medidas", cada una con cómo medirla (cinta métrica, relajado, sin apretar la piel).
+    var principales = campo('peso', 'Peso', 'kg', '68,2', 'En ayunas, sin zapatos.') + campo('cintura', 'Cintura', 'cm', '74', 'En la parte más angosta, sin apretar.') +
+      campo('cadera', 'Cadera', 'cm', '98', 'En la parte más ancha de los glúteos.');
+    var mas = campo('abdomen', 'Abdomen', 'cm', '82', 'A la altura del ombligo.') + campo('pecho', 'Pecho', 'cm', '95', 'A la altura de los pezones, al botar el aire.') +
+      campo('hombros', 'Hombros', 'cm', '110', 'Alrededor, en la parte más ancha.') +
+      campo('brazo', 'Brazo derecho', 'cm', '29', 'A mitad del brazo, relajado.') + campo('brazoIzq', 'Brazo izquierdo', 'cm', '29', 'A mitad del brazo, relajado.') +
+      campo('muslo', 'Muslo derecho', 'cm', '56', 'Bajo el glúteo, en la parte más ancha.') + campo('musloIzq', 'Muslo izquierdo', 'cm', '56', 'Bajo el glúteo, en la parte más ancha.') +
+      campo('pantorrilla', 'Pantorrilla derecha', 'cm', '36', 'En la parte más ancha, de pie.') + campo('pantorrillaIzq', 'Pantorrilla izquierda', 'cm', '36', 'En la parte más ancha, de pie.');
     var hist = d.registros.slice(0, 3).map(function (r) {
       var partes = [];
       if (r.peso !== '') partes.push(num(r.peso) + ' kg');
@@ -461,7 +470,8 @@
     el.innerHTML = '<h1>Seguimiento</h1><p class="lead">Aquí me ayudas a ver tu cambio. Sube tus fotos y medidas cada 4 semanas.</p>' +
       '<div class="block"><h2>Tus fotos</h2><div class="slots">' + slot('frontal', 'Frontal') + slot('lateral', 'Lateral') + slot('posterior', 'Posterior') + '</div><p class="note">Solo tú y yo vemos tus fotos.</p></div>' +
       cambioEnFotos(d.registros) +
-      '<div class="block"><h2>Tus medidas</h2><div class="fields">' + campo('peso', 'Peso', 'kg', '68,2') + campo('cintura', 'Cintura', 'cm', '74') + campo('cadera', 'Cadera', 'cm', '98') + campo('brazo', 'Brazo', 'cm', '29') + campo('muslo', 'Muslo', 'cm', '56') + '</div>' +
+      '<div class="block"><h2>Tus medidas</h2><p class="note" style="margin-top:-4px">Ninguna es obligatoria: anota las que puedas, siempre de la misma forma.</p><div class="fields">' + principales + '</div>' +
+      '<details class="mas-medidas"><summary>Más medidas</summary><div class="fields">' + mas + '</div></details>' +
       '<div style="margin-top:16px"><button class="btn block-btn" data-act="guardarMedidas">Guardar seguimiento</button></div></div>' +
       (hist ? '<div class="block"><h2>Tus últimos registros</h2>' + hist + '</div>' : '');
   }
@@ -474,7 +484,7 @@
     var cls = estado === 'Validado' ? 'validado' : (estado === 'Rechazado' ? 'rechazado' : (estado === 'Pendiente de validación' ? 'validacion' : 'pendiente'));
     var accion;
     if (estado === 'Pendiente' || estado === 'Rechazado') {
-      accion = '<label class="btn file-btn block-btn"><input type="file" accept="image/*,application/pdf" data-comprobante="' + esc(actual ? actual.id : '') + '" aria-label="Subir comprobante de pago">' + (estado === 'Rechazado' ? 'Volver a subir el comprobante' : 'Subir comprobante') + '</label>';
+      accion = '<button class="btn block-btn" data-act="registrarPago" data-id="' + esc(actual ? actual.id : '') + '">' + (estado === 'Rechazado' ? 'Registrar mi pago de nuevo' : 'Registrar mi pago') + '</button>';
     } else if (estado === 'Validado') {
       accion = '<p class="note" style="margin-top:0">Tu pago está validado. Gracias.</p>';
     } else {
@@ -485,7 +495,7 @@
       var c = p.estado === 'Validado' ? 'validado' : (p.estado === 'Rechazado' ? 'rechazado' : (p.estado === 'Pendiente de validación' ? 'validacion' : 'pendiente'));
       return '<div class="row" style="cursor:default"><span class="t"><b>Corte del ' + esc(p.corte ? fechaLarga(p.corte) : '') + '</b><span>' + esc(dinero(p.monto)) + (p.nota ? '. ' + esc(p.nota) : '') + '</span></span><span class="tag ' + c + '">' + esc(ETIQUETA[p.estado] || p.estado) + '</span></div>';
     }).join('');
-    el.innerHTML = '<h1>Pagos</h1><p class="lead">Transfiere y sube tu comprobante. Yo lo reviso y te confirmo aquí.</p>' +
+    el.innerHTML = '<h1>Pagos</h1><p class="lead">Cuando pagues, regístralo aquí con tu comprobante. Yo lo reviso y te confirmo.</p>' +
       '<div class="pay-now"><span class="tag ' + cls + '">' + esc(ETIQUETA[estado] || estado) + '</span><p class="amt">' + esc(dinero(monto) || 'Sin valor definido') + '</p>' +
       '<p class="muted" style="margin-bottom:14px">' + (d.proximoCorte ? 'Tu fecha de corte es el ' + esc(fechaLarga(d.proximoCorte)) + '.' : 'Michael te confirma tu fecha de corte.') + '</p>' + accion + '</div>' +
       (hist ? '<div class="block" style="margin-top:8px"><h2>Historial</h2><div class="list" style="margin-top:0">' + hist + '</div></div>' : '');
@@ -531,6 +541,8 @@
     var a = el.getAttribute('data-act');
     if (a === 'entrar') entrar();
     else if (a === 'guia') { var n = el.getAttribute('data-e'); S.guiaAbierta[n] = !el.parentNode.open; }
+    else if (a === 'registrarPago') registrarPago(el.getAttribute('data-id'));
+    else if (a === 'enviarPago') enviarPago(el, el.getAttribute('data-id'));
     else if (a === 'verFotos') verFotos(el.getAttribute('data-f'));
     else if (a === 'compararFotos') compararFotos(el.getAttribute('data-a'));
     else if (a === 'ir') ir(el.getAttribute('data-t'));
@@ -562,6 +574,7 @@
     if (t.getAttribute && t.getAttribute('data-act') === 'cambiarEjercicio') { S.ejercicioFuerza = t.value; cargarPantalla('progreso', true); return; }
     if (t.hasAttribute && t.hasAttribute('data-foto') && t.files && t.files[0]) subirFoto(t);
     if (t.hasAttribute && t.hasAttribute('data-comprobante') && t.files && t.files[0]) subirComprobante(t);
+    if (t.id === 'pArchivo') { var nf = t.files && t.files[0]; $('pArchivoTxt').textContent = nf ? 'Comprobante: ' + nf.name : 'Adjuntar comprobante (foto o PDF)'; }
   });
   document.addEventListener('input', function (e) {
     var t = e.target;
@@ -586,10 +599,15 @@
 
   function guardarMedidas(btn) {
     var datos = {}, alguna = false;
-    document.querySelectorAll('[data-m]').forEach(function (i) { if (i.value !== '') { datos[i.getAttribute('data-m')] = i.value; alguna = true; } });
+    // Solo los campos de Seguimiento: el mapa del cuerpo también usa data-m (pecho, hombros...).
+    document.querySelectorAll('#s-seguimiento input[data-m]').forEach(function (i) { if (i.value !== '') { datos[i.getAttribute('data-m')] = i.value; alguna = true; } });
     if (!alguna) { toast('Escribe al menos una medida para guardar.'); return; }
     btn.classList.add('busy');
-    api('guardarSeguimiento', datos).then(function () { btn.classList.remove('busy'); toast('Seguimiento guardado. Lo reviso esta semana.'); delete S.datos.seguimiento; delete S.datos.progreso; cargarPantalla('seguimiento', true); })
+    api('guardarSeguimiento', datos).then(function (r) {
+      btn.classList.remove('busy');
+      toast(r && r.omitidas && r.omitidas.length ? 'Guardé tus medidas, menos: ' + r.omitidas.join(', ') + '. Avísame.' : 'Seguimiento guardado. Lo reviso esta semana.');
+      delete S.datos.seguimiento; delete S.datos.progreso; cargarPantalla('seguimiento', true);
+    })
       .catch(function (e) { btn.classList.remove('busy'); manejarError(e); });
   }
   function subirFoto(input) {
@@ -598,6 +616,35 @@
     preparar(input.files[0]).then(function (f) {
       return api('subirFoto', { tipo: tipo, mime: f.mime, datos: f.datos }).then(function () { subidas[tipo] = { vista: f.vista }; toast('Foto enviada. Solo yo la veo.'); delete S.datos.seguimiento; dibujarSeguimiento(S.datos.seguimiento || { registros: [] }); cargarPantalla('seguimiento', true); });
     }).catch(function (e) { cuerpo.innerHTML = CAM + '<span>Subir foto</span>'; manejarError(e); });
+  }
+  // Registrar el pago: valor, medio, fecha y comprobante (opcional si fue en efectivo).
+  var MEDIOS = ['Nequi', 'Daviplata', 'Bancolombia', 'Otro banco', 'Efectivo', 'Pago desde el exterior'];
+  function hoyLocal() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function registrarPago(idPago) {
+    var d = S.datos.pagos || {}, actual = (d.pagos || []).filter(function (p) { return p.id === idPago; })[0];
+    var monto = actual && actual.monto !== '' ? actual.monto : (d.montoMensual || '');
+    abrirHoja('<h2>Registrar mi pago</h2><div class="form-pago">' +
+      '<label for="pMonto">Valor que pagaste (pesos)</label><div class="in"><span>$</span><input id="pMonto" type="number" inputmode="numeric" min="1" step="1" value="' + esc(monto) + '"></div>' +
+      '<label for="pMedio">¿Cómo pagaste?</label><select id="pMedio">' + (d.medios || MEDIOS).map(function (m) { return '<option>' + esc(m) + '</option>'; }).join('') + '</select>' +
+      '<label for="pFecha">Fecha del pago</label><input id="pFecha" type="date" max="' + hoyLocal() + '" value="' + hoyLocal() + '">' +
+      '<label class="file-pago"><input type="file" id="pArchivo" accept="image/*,application/pdf"><span id="pArchivoTxt">Adjuntar comprobante (foto o PDF)</span></label>' +
+      '<p class="note">Si pagaste en efectivo, no hace falta comprobante.</p></div>' +
+      '<div style="margin-top:16px"><button class="btn block-btn" data-act="enviarPago" data-id="' + esc(idPago || '') + '">Enviar</button>' +
+      '<div style="height:10px"></div><button class="btn ghost block-btn" data-act="cerrarHoja">Cancelar</button></div>');
+  }
+  function enviarPago(btn, idPago) {
+    var monto = $('pMonto').value, medio = $('pMedio').value, fecha = $('pFecha').value, archivo = ($('pArchivo').files || [])[0];
+    if (!(Number(monto) > 0)) { toast('Escribe el valor que pagaste.'); return; }
+    if (!fecha) { toast('Elige la fecha del pago.'); return; }
+    if (fecha > hoyLocal()) { toast('La fecha no puede ser futura.'); return; }
+    if (!archivo && medio !== 'Efectivo') { toast('Adjunta la foto o el PDF del comprobante.'); return; }
+    var datos = { monto: Number(monto), medio: medio, fecha: fecha };
+    if (idPago) datos.idPago = idPago;
+    btn.classList.add('busy');
+    (archivo ? preparar(archivo).then(function (f) { datos.mime = f.mime; datos.datos = f.datos; }) : Promise.resolve())
+      .then(function () { return api('subirComprobante', datos); })
+      .then(function () { cerrarHoja(); toast('Pago registrado. Lo reviso pronto.'); delete S.datos.pagos; cargarPantalla('pagos', true); })
+      .catch(function (e) { btn.classList.remove('busy'); manejarError(e); });
   }
   function subirComprobante(input) {
     var idPago = input.getAttribute('data-comprobante'), boton = input.parentNode;
