@@ -476,7 +476,9 @@
       }).join('');
       return '<details class="sess"><summary><span class="d">' + esc(s.dia) + '</span><span class="t"><b>' + esc(s.nombre) + '</b><span>' + esc(fechaLarga(s.fecha)) + ' · ' + esc(s.duracion) + ' min · ' + s.ejercicios.length + ' ejercicios</span></span>' + CHEV + '</summary>' + ejs + '</details>';
     }).join('');
-    var acciones = (p.estado === 'Por aprobar' ? '<button class="btn block-btn" data-act="pedirAprobar">Aprobar plan</button>' : '') +
+    var acciones = (p.estado === 'Por aprobar' ? '<button class="btn block-btn" data-act="pedirAprobar">Aprobar plan</button>' +
+        '<button class="btn ghost block-btn" data-act="pedirFechaPlan">Cambiar fecha de inicio</button>' +
+        '<button class="btn ghost block-btn" data-act="pedirDescartar">Descartar y volver a prepararlo</button>' : '') +
       '<button class="btn ghost block-btn" data-act="pedirNota">Dejar una nota</button>';
     $('s-planes').innerHTML = '<button class="back" data-act="volverPlanes">' + ATRAS + 'Planes</button>' +
       '<h1>' + esc(p.cliente) + '</h1><p class="lead"><span class="tag ' + clasePlan(p.estado) + '">' + esc(p.estado) + '</span></p>' +
@@ -498,6 +500,36 @@
     api('admin_aprobarPlan', { id: idPlan }).then(function () {
       cerrarHoja(); toast('Plan aprobado.'); invalidar(); if (S.tab === 'planes' && S.planSel === idPlan) cargarPlan(idPlan, true);
     }).catch(function (e) { ocupar(btn, false); if (e && e.sesion) manejarError(e); else { cerrarHoja(); toast(e.message); } });
+  }
+  // Antes de aprobar: cambiar la fecha de inicio (recalcula las sesiones) o descartar la propuesta para volver a generarla.
+  function pedirFechaPlan() {
+    var p = S.datos.plan[S.planSel].plan;
+    abrirHoja('<h2>Cambiar fecha de inicio</h2><div class="form"><label for="nuevaIni">Nuevo inicio del ciclo</label><input id="nuevaIni" type="date" value="' + esc(p.inicio || '') + '"></div>' +
+      '<p class="small muted" style="margin-top:6px">Las sesiones conservan su día de la semana y se mueven a partir de esta fecha. El corte queda 30 días después.</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="fechaPlan">Guardar fecha</button>'));
+  }
+  function fechaPlan(btn) {
+    var idPlan = S.planSel, v = ($('nuevaIni') || {}).value;
+    if (!v) { toast('Elige la fecha.'); return; }
+    ocupar(btn, true);
+    api('admin_fechaPlan', { id: idPlan, inicio: v }).then(function () {
+      cerrarHoja(); toast('Fechas actualizadas.'); delete (S.datos.plan || {})[idPlan]; olvidar(['planes']);
+      if (S.tab === 'planes' && S.planSel === idPlan) cargarPlan(idPlan, true);
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function pedirDescartar() {
+    var p = S.datos.plan[S.planSel].plan;
+    abrirHoja('<h2>¿Descartar esta propuesta?</h2><p class="muted" style="margin-top:8px">Se borran sus sesiones y ejercicios, y el plan de ' + esc(p.cliente) + ' vuelve a borrador para prepararlo de nuevo. No se puede deshacer.</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="descartarPlan">Descartar propuesta</button>'));
+  }
+  function descartarPlan(btn) {
+    var idPlan = S.planSel, cliente = S.datos.plan[idPlan].plan.clienteId;
+    ocupar(btn, true);
+    api('admin_descartarPlan', { id: idPlan }).then(function () {
+      cerrarHoja(); toast('Propuesta descartada. Ya puedes prepararla de nuevo.');
+      delete (S.datos.plan || {})[idPlan]; olvidar(['planes', 'hoy', 'clientes'], cliente);
+      if (S.tab === 'planes' && S.planSel === idPlan) abrirCliente(cliente);
+    }).catch(function (e) { fallaEnHoja(btn, e); });
   }
   function pedirNota() {
     abrirHoja('<h2>Dejar una nota</h2><p class="muted" style="margin:8px 0 14px">Queda en las notas del plan, para que Nata la vea.</p><textarea id="notaTxt" maxlength="400" aria-label="Nota" placeholder="Por ejemplo: subir el peso en la semana 3"></textarea>' +
@@ -841,6 +873,10 @@
     else if (a === 'pedirPausa') pedirPausa(id);
     else if (a === 'pausar') cambioEstado(el, 'admin_pausar', id, 'Cliente en pausa.');
     else if (a === 'reactivar') cambioEstado(el, 'admin_reactivar', id, 'Cliente reactivado.');
+    else if (a === 'pedirFechaPlan') pedirFechaPlan();
+    else if (a === 'fechaPlan') fechaPlan(el);
+    else if (a === 'pedirDescartar') pedirDescartar();
+    else if (a === 'descartarPlan') descartarPlan(el);
     else if (a === 'pedirSemaforo') pedirSemaforo(id);
     else if (a === 'colorSem') { Array.prototype.forEach.call(document.querySelectorAll('#sheet [data-act="colorSem"]'), function (b) { b.setAttribute('aria-pressed', String(b === el)); }); }
     else if (a === 'guardarSemaforo') guardarSemaforo(el, id);
