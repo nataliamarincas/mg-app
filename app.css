@@ -128,7 +128,7 @@ main{flex:1;min-height:0;position:relative}
 .ex-info b{display:block;font-weight:600;line-height:1.25}
 .ex-info span{font-size:13px;color:var(--muted)}
 .kg{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:12px;padding:0 10px;height:44px}
-.kg input{width:44px;border:0;background:none;text-align:right;font-family:var(--display);font-weight:800;font-size:17px;padding:0;-moz-appearance:textfield}
+.kg input{width:58px;border:0;background:none;text-align:right;font-family:var(--display);font-weight:800;font-size:17px;padding:0;-moz-appearance:textfield}
 .kg input::-webkit-outer-spin-button,.kg input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .kg span{font-size:13px;color:var(--muted)}
 .sets{display:flex;gap:10px;margin-top:14px;padding-left:66px}

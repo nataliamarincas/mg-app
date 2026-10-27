@@ -270,7 +270,7 @@
       return '<div class="ex"><div class="ex-top"><div class="thumb">' + DUMB + '</div><div class="ex-info"><b>' + esc(e.nombre) + '</b><span>' + e.series + ' series de ' + esc(e.repeticiones) + (e.grupo ? ', ' + esc(String(e.grupo).toLowerCase()) : '') + '</span>' +
         (v ? '<div class="videolink"><a class="linkbtn" href="' + esc(v) + '" target="_blank" rel="noopener noreferrer">Ver video</a></div>' : '') +
         (e.nota ? '<div class="note" style="margin-top:4px">' + esc(e.nota) + '</div>' : '') + cambioAlt(e0) + '</div>' +
-        '<label class="kg"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(kg) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div>' + guiaHtml(e) + '<div class="sets">' + sets + '</div></div>';
+        '<label class="kg"><input type="text" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="0" value="' + esc(String(kg).replace('.', ',')) + '" data-kg="' + esc(e.nombre) + '" aria-label="Peso en kilos para ' + esc(e.nombre) + '"><span>kg</span></label></div>' + guiaHtml(e) + '<div class="sets">' + sets + '</div></div>';
     }).join('');
     el.innerHTML = '<h1>' + esc(s.nombre) + '</h1><p class="lead">Con calma y buena técnica. Marca cada serie cuando la termines.</p>' +
       '<div class="prog-line"><span><span class="num" style="font-size:28px">' + d + '</span> <span class="muted">de ' + total + ' series</span></span><span class="muted small">' + pct + '%</span></div>' +
@@ -601,7 +601,10 @@
   document.addEventListener('input', function (e) {
     var t = e.target;
     if (t.hasAttribute && t.hasAttribute('data-kg')) {
-      var nombre = t.getAttribute('data-kg'); S.kg[nombre] = t.value;
+      // Acepta 2.5 y 2,5 (el teclado del iPhone en español trae coma): solo números y un separador decimal.
+      var limpio = String(t.value).replace(/[^\d.,]/g, '').replace(/^([^.,]*[.,])(.*)$/, function (m, a, b) { return a + b.replace(/[.,]/g, ''); }).slice(0, 6);
+      if (limpio !== t.value) t.value = limpio;
+      var nombre = t.getAttribute('data-kg'); S.kg[nombre] = limpio.replace(',', '.');
       clearTimeout(debounces[nombre]);
       debounces[nombre] = setTimeout(function () {
         // si ya hay series marcadas de este ejercicio, se actualiza el peso registrado
