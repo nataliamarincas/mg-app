@@ -620,6 +620,7 @@
     var datos = ' data-s="' + esc(sid) + '"' + (e ? ' data-e="' + esc(e.id) + '"' : '');
     abrirHoja('<h2>' + (e ? 'Editar ejercicio' : 'Agregar ejercicio') + '</h2><p class="muted" style="margin-top:4px">' + esc(s.nombre) + ' · ' + esc(s.dia) + ' ' + esc(fechaLarga(s.fecha)) + '</p>' + avisoHecha(s) +
       '<div class="form"><label for="eNom">Ejercicio</label><select id="eNom">' + opts + '</select>' +
+      '<p class="small" style="margin-top:8px"><button class="linkbtn" data-act="mostrarNuevoEj">¿No está? Agrégalo a la Biblioteca</button></p>' + formNuevoEjercicio(d) +
       '<div class="dos"><div><label for="eSer">Series</label><input id="eSer" type="number" inputmode="numeric" min="1" max="8" value="' + esc(e ? e.series : 3) + '"></div>' +
       '<div><label for="eRep">Repeticiones</label><input id="eRep" maxlength="20" placeholder="10 u 8-10" value="' + esc(e ? e.repeticiones : '10') + '"></div></div>' +
       '<div class="dos"><div><label for="eDes">Descanso (s)</label><input id="eDes" type="number" inputmode="numeric" min="0" max="300" value="' + esc(e ? e.descanso : 60) + '"></div>' +
@@ -636,9 +637,48 @@
     if (!nombre) { toast('Elige un ejercicio.'); return; }
     ocupar(btn, true);
     api('admin_guardarEjercicio', { idSesion: sid, idEjercicio: eid || '', alcance: S.alcance, nombre: nombre, series: Number($('eSer').value), repeticiones: $('eRep').value.trim(),
-      descanso: Number($('eDes').value), peso: $('ePes').value.trim().replace(',', '.'), nota: $('eNot').value })
+      descanso: Number($('eDes').value), peso: $('ePes').value.trim().replace(',', '.'), nota: $('eNot').value, confirmarLugar: btn.getAttribute('data-casa') === '1' })
       .then(function (r) { trasEditar((eid ? 'Ejercicio guardado' : 'Ejercicio agregado') + enSesiones(r.sesiones) + '.'); })
-      .catch(function (e) { fallaEnHoja(btn, e); });
+      .catch(function (e) {
+        // Ejercicio de gimnasio para quien entrena en casa: Michael decide si tiene el equipo.
+        if (e && e.usuario && /entrena en casa/.test(e.message) && $('hojaErr')) {
+          ocupar(btn, false);
+          var err = $('hojaErr'), datos = ' data-s="' + esc(sid) + '"' + (eid ? ' data-e="' + esc(eid) + '"' : '');
+          err.hidden = false;
+          err.innerHTML = esc(e.message) + '<div style="margin-top:10px"><button class="btn block-btn" data-act="guardarEj" data-casa="1"' + datos + '>Sí, lo tiene: guardar igual</button></div>';
+          return;
+        }
+        fallaEnHoja(btn, e);
+      });
+  }
+
+  // Agregar un ejercicio a la Biblioteca sin salir de la hoja: al guardarlo queda elegido en la lista.
+  function formNuevoEjercicio(d) {
+    var op = function (lista, vacio) { return (vacio ? '<option value="">' + vacio + '</option>' : '') + lista.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join(''); };
+    return '<div id="nuevoEjBox" class="block" hidden style="margin-top:4px"><h3 style="margin-top:0">Nuevo ejercicio en la Biblioteca</h3>' +
+      '<label for="nNom">Nombre</label><input id="nNom" maxlength="60" placeholder="Por ejemplo: Bicicleta estática">' +
+      '<div class="dos"><div><label for="nGru">Grupo</label><select id="nGru">' + op(d.grupos || [], 'Elige') + '</select></div>' +
+      '<div><label for="nLug">Dónde se hace</label><select id="nLug">' + op(d.lugares || [], 'Elige') + '</select></div></div>' +
+      '<label for="nEqu">Equipo</label><input id="nEqu" maxlength="60" placeholder="Por ejemplo: Máquina o Sin equipo">' +
+      '<label for="nVid">Video (opcional)</label><input id="nVid" type="url" maxlength="300" placeholder="https://www.youtube.com/…">' +
+      '<label for="nAlt">Alternativa (opcional)</label><select id="nAlt">' + op((d.biblioteca || []).map(function (b) { return b.nombre; }), 'Sin alternativa') + '</select>' +
+      '<p class="small muted">"Cómo se hace" se completa después en la hoja.</p>' +
+      '<button class="btn ghost block-btn" data-act="guardarNuevoEj" style="margin-top:8px">Agregar a la Biblioteca</button></div>';
+  }
+  function guardarNuevoEjercicio(btn) {
+    var datos = { nombre: $('nNom').value.trim(), grupo: $('nGru').value, lugar: $('nLug').value, equipo: $('nEqu').value, video: $('nVid').value.trim(), alternativa: $('nAlt').value };
+    if (!datos.nombre) { toast('Escribe el nombre del ejercicio.'); return; }
+    if (!datos.grupo || !datos.lugar) { toast('Elige el grupo y dónde se hace.'); return; }
+    ocupar(btn, true);
+    api('admin_nuevoEjercicio', datos).then(function (r) {
+      ocupar(btn, false);
+      var d = planAbierto(); if (d && d.biblioteca) d.biblioteca.push({ nombre: r.nombre, grupo: r.grupo, lugar: r.lugar });
+      var sel = $('eNom'); if (!sel) return;
+      var o = document.createElement('option'); o.value = r.nombre; o.textContent = r.nombre + (r.lugar === 'Gimnasio' ? ' (gimnasio)' : '');
+      sel.appendChild(o); sel.value = r.nombre;
+      $('nuevoEjBox').hidden = true; $('hojaErr').hidden = true;
+      toast(r.nombre + ' quedó en la Biblioteca y elegido.');
+    }).catch(function (e) { fallaEnHoja(btn, e); });
   }
   function moverEjercicio(btn, sid, eid, dir) {
     ocupar(btn, true);
@@ -1104,6 +1144,8 @@
     else if (a === 'editSes') pedirSesion(el.getAttribute('data-s'));
     else if (a === 'guardarSes') guardarSesion(el, el.getAttribute('data-s'));
     else if (a === 'quitarSes') quitarSesion(el, el.getAttribute('data-s'));
+    else if (a === 'mostrarNuevoEj') { var box = $('nuevoEjBox'); if (box) { box.hidden = !box.hidden; if (!box.hidden) $('nNom').focus(); } }
+    else if (a === 'guardarNuevoEj') guardarNuevoEjercicio(el);
     else if (a === 'editPlan') pedirDatosPlan();
     else if (a === 'guardarDatosPlan') guardarDatosPlan(el);
     else if (a === 'pedirNuevoPlan') pedirNuevoPlan(id);
