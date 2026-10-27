@@ -281,7 +281,11 @@
       '<div class="kv"><span>Ciclo</span><span>' + esc(fechaLarga(p.inicio)) + ' al ' + esc(fechaLarga(p.corte)) + '</span></div>' +
       '<div class="kv"><span>Sesiones hechas</span><span>' + p.hechas + ' de ' + p.total + '</span></div></div>' +
       (p.adherencia !== null ? '<div class="bar' + (p.adherencia < 0.6 ? ' low' : '') + '" role="img" aria-label="Adherencia ' + pct(p.adherencia) + '"><i style="width:' + Math.min(100, Math.round(p.adherencia * 100)) + '%"></i></div>' : '') +
-      '<div style="margin-top:12px"><button class="btn ghost" data-act="abrirPlan" data-id="' + esc(p.id) + '">Ver el plan</button></div></div>' : '<div class="block"><h2>Plan vigente</h2><p class="muted">Todavía no tiene un plan aprobado.</p></div>';
+      '<div style="margin-top:12px"><button class="btn ghost" data-act="abrirPlan" data-id="' + esc(p.id) + '">Ver y editar el plan</button></div></div>' : '<div class="block"><h2>Plan vigente</h2><p class="muted">Todavía no tiene un plan aprobado.</p></div>';
+    var planes = c.estado === 'Inactivo' && !(d.planes || []).length ? '' : '<div class="block"><h2>Sus planes</h2>' + ((d.planes || []).length ? '<div class="list" style="margin-top:0">' + d.planes.map(function (x) {
+      return '<button class="row tap" data-act="abrirPlan" data-id="' + esc(x.id) + '"><span class="t"><b>' + (x.inicio ? esc(fechaCorta(x.inicio)) + ' al ' + esc(fechaCorta(x.corte)) : 'Sin fechas') + '</b><span>' + esc(x.objetivo || 'Sin objetivo todavía') + '</span></span><span class="tag ' + clasePlan(x.estado) + '">' + esc(x.estado) + '</span></button>';
+    }).join('') + '</div>' : '<p class="muted">Todavía no tiene planes.</p>') +
+      (c.estado !== 'Inactivo' ? '<div style="margin-top:12px"><button class="btn ghost block-btn" data-act="pedirNuevoPlan" data-id="' + esc(c.id) + '">+ Crear plan nuevo</button></div>' : '') + '</div>';
     var filas = [['Peso', 'peso', 'kg'], ['Cintura', 'cintura', 'cm'], ['Cadera', 'cadera', 'cm'], ['Abdomen', 'abdomen', 'cm'], ['Pecho', 'pecho', 'cm'], ['Hombros', 'hombros', 'cm'],
       ['Brazo derecho', 'brazo', 'cm'], ['Brazo izquierdo', 'brazoIzq', 'cm'], ['Muslo derecho', 'muslo', 'cm'], ['Muslo izquierdo', 'musloIzq', 'cm'],
       ['Pantorrilla derecha', 'pantorrilla', 'cm'], ['Pantorrilla izquierda', 'pantorrillaIzq', 'cm']].map(function (m) {
@@ -303,7 +307,7 @@
     var docs = '<div class="block"><h2>Documentos</h2><div class="block" style="margin-top:0"><div class="kv"><span>Autorización de datos</span><span>' + (d.firmas.autorizacion ? 'Firmada' : 'Pendiente') + '</span></div><div class="kv"><span>Contrato</span><span>' + (d.firmas.contrato ? 'Firmado' : 'Pendiente') + '</span></div></div></div>';
     $('s-clientes').innerHTML = '<button class="back" data-act="volverClientes">' + ATRAS + 'Clientes</button><h1>' + esc(c.nombre) + '</h1>' +
       '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + etiquetaSemaforo(d.semaforo) + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa +
-      avanceIngreso(d) + kpis + plan + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
+      avanceIngreso(d) + kpis + plan + planes + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
       (c.baja ? '<div class="banner" style="margin-top:24px">Se dio de baja el ' + esc(fechaLarga(c.baja)) + (c.motivoBaja ? '. Motivo: ' + esc(c.motivoBaja) : '') + '.</div>' : '');
   }
 
@@ -449,13 +453,14 @@
   /* ---------- Planes ---------- */
   function dibujarPlanes(lista) {
     var el = $('s-planes');
-    if (!lista.length) { el.innerHTML = '<h1>Planes</h1><div class="empty"><b>Todavía no hay planes</b>Cuando Nata cargue una propuesta, la verás aquí para aprobarla.</div>'; return; }
-    el.innerHTML = '<h1>Planes</h1><p class="lead">Revisa y aprueba lo que prepara Nata.</p><div class="list">' + lista.map(function (p) {
+    var nuevo = '<div style="margin-top:14px"><button class="btn ghost block-btn" data-act="pedirNuevoPlan">+ Nuevo plan</button></div>';
+    if (!lista.length) { el.innerHTML = '<h1>Planes</h1><div class="empty"><b>Todavía no hay planes</b>Crea uno aquí o prepara la propuesta desde la ficha del cliente.</div>' + nuevo; return; }
+    el.innerHTML = '<h1>Planes</h1><p class="lead">Revisa, aprueba y ajusta los planes. Toca uno para editarlo.</p>' + nuevo + '<div class="list">' + lista.map(function (p) {
       return '<button class="row tap" data-act="abrirPlan" data-id="' + esc(p.id) + '"><span class="t"><b>' + esc(p.cliente) + '</b><span>' + esc(p.objetivo || 'Sin objetivo todavía') + '</span></span><span class="tag ' + clasePlan(p.estado) + '">' + esc(p.estado) + '</span></button>';
     }).join('') + '</div>';
   }
   function abrirPlan(id) {
-    S.clienteSel = null; S.planSel = id; S.semanaSel = null;
+    S.clienteSel = null; S.planSel = id; S.semanaSel = null; S.sesAbierta = null;
     if (S.tab !== 'planes') mostrarTab('planes');
     cargarPlan(id, false);
   }
@@ -474,9 +479,12 @@
     var sesiones = (S.semanaSel && d.semanas[S.semanaSel] || []).map(function (s) {
       var ejs = s.ejercicios.map(function (e) {
         var peso = (e.peso === '' || e.peso === null) ? 'peso por definir' : num(e.peso) + ' kg';
-        return '<div class="ex-line"><b>' + esc(e.nombre) + '</b><span>' + esc(e.series) + ' × ' + esc(e.repeticiones) + ' · descanso ' + esc(e.descanso) + ' s · ' + esc(peso) + '</span>' + (e.nota ? '<span>' + esc(e.nota) + '</span>' : '') + '</div>';
-      }).join('');
-      return '<details class="sess"><summary><span class="d">' + esc(s.dia) + '</span><span class="t"><b>' + esc(s.nombre) + '</b><span>' + esc(fechaLarga(s.fecha)) + ' · ' + esc(s.duracion) + ' min · ' + s.ejercicios.length + ' ejercicios</span></span>' + CHEV + '</summary>' + ejs + '</details>';
+        return '<div class="ex-line"><div class="ex-top"><b>' + esc(e.nombre) + '</b><button class="linkbtn" data-act="editEj" data-s="' + esc(s.id) + '" data-e="' + esc(e.id) + '">Editar</button></div>' +
+          '<span>' + esc(e.series) + ' × ' + esc(e.repeticiones) + ' · descanso ' + esc(e.descanso) + ' s · ' + esc(peso) + '</span>' + (e.nota ? '<span>' + esc(e.nota) + '</span>' : '') + '</div>';
+      }).join('') || '<div class="ex-line"><span>Sin ejercicios todavía.</span></div>';
+      var pie = '<div class="ex-line ses-acts"><button class="linkbtn" data-act="editEj" data-s="' + esc(s.id) + '">+ Agregar ejercicio</button><button class="linkbtn" data-act="editSes" data-s="' + esc(s.id) + '">Editar sesión</button></div>';
+      return '<details class="sess"' + (S.sesAbierta === s.id ? ' open' : '') + '><summary><span class="d">' + esc(s.dia) + '</span><span class="t"><b>' + esc(s.nombre) + '</b><span>' + esc(fechaLarga(s.fecha)) + ' · ' + esc(s.duracion) + ' min · ' + plural(s.ejercicios.length, 'ejercicio', 'ejercicios') +
+        (s.estado === 'Completada' ? ' · hecha' : '') + '</span></span>' + CHEV + '</summary>' + ejs + pie + '</details>';
     }).join('');
     var acciones = (p.estado === 'Por aprobar' ? '<button class="btn block-btn" data-act="pedirAprobar">Aprobar plan</button>' +
         '<button class="btn ghost block-btn" data-act="pedirFechaPlan">Cambiar fecha de inicio</button>' +
@@ -485,10 +493,13 @@
     $('s-planes').innerHTML = '<button class="back" data-act="volverPlanes">' + ATRAS + 'Planes</button>' +
       '<h1>' + esc(p.cliente) + '</h1><p class="lead"><span class="tag ' + clasePlan(p.estado) + '">' + esc(p.estado) + '</span></p>' +
       '<div class="block" style="margin-top:20px"><div class="kv"><span>Objetivo</span><span>' + esc(p.objetivo || '—') + '</span></div>' +
-      '<div class="kv"><span>Ciclo</span><span>' + esc(fechaLarga(p.inicio)) + ' al ' + esc(fechaLarga(p.corte)) + '</span></div></div>' +
-      (p.recomendacion ? '<div class="block"><h2>Lo que ve el cliente</h2><div class="quote"><p>' + esc(p.recomendacion) + '</p></div></div>' : '') +
+      '<div class="kv"><span>Ciclo</span><span>' + (p.inicio ? esc(fechaLarga(p.inicio)) + ' al ' + esc(fechaLarga(p.corte)) : 'Sin fechas') + '</span></div>' +
+      '<div style="margin-top:10px"><button class="linkbtn" data-act="editPlan">Editar objetivo, mensaje y ciclo</button></div></div>' +
+      '<div class="block"><h2>Lo que ve el cliente</h2>' + (p.recomendacion ? '<div class="quote"><p>' + esc(p.recomendacion) + '</p></div>' : '<p class="muted">Sin mensaje todavía.</p>') + '</div>' +
       (p.notas ? '<div class="block"><h2>Notas para ti</h2><div class="notes">' + esc(p.notas) + '</div><span class="private">Solo tú ves esto. Léelo antes de aprobar.</span></div>' : '') +
-      '<div class="block"><h2>Sesiones</h2>' + (semanas.length ? '<div class="seg" style="margin-top:0" role="group" aria-label="Semana">' + seg + '</div><div class="list" style="margin-top:8px">' + sesiones + '</div>' : '<p class="muted">Este plan todavía no tiene sesiones.</p>') + '</div>' +
+      '<div class="block"><h2>Sesiones</h2>' + (p.estado === 'Aprobado' ? '<p class="small muted" style="margin-top:0">El cliente ve los cambios al instante.</p>' : '') +
+      (semanas.length ? '<div class="seg" style="margin-top:0" role="group" aria-label="Semana">' + seg + '</div><div class="list" style="margin-top:8px">' + sesiones + '</div>' : '<p class="muted">Este plan todavía no tiene sesiones.</p>') +
+      '<div style="margin-top:14px"><button class="btn ghost block-btn" data-act="editSes">+ Agregar sesión</button></div></div>' +
       '<div class="actions">' + acciones + '</div>';
   }
   function pedirAprobar() {
@@ -545,6 +556,198 @@
     api('admin_notaPlan', { id: idNota, nota: txt }).then(function () {
       cerrarHoja(); toast('Nota guardada.'); delete (S.datos.plan || {})[idNota]; if (S.tab === 'planes' && S.planSel === idNota) cargarPlan(idNota, true);
     }).catch(function (e) { ocupar(btn, false); if (e && e.sesion) manejarError(e); else toast(e.message); });
+  }
+
+  /* ---------- Editar el plan: ejercicios, sesiones, datos del plan y plan nuevo ---------- */
+  // "Iguales": la misma sesión (mismo día y nombre) en otras semanas que el cliente aún no hizo. El puente aplica la misma regla.
+  var DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  function planAbierto() { return (S.datos.plan || {})[S.planSel] || null; }
+  function buscarSesion(d, sid) {
+    var hallada = null;
+    Object.keys(d.semanas).forEach(function (w) { d.semanas[w].forEach(function (s) { if (s.id === sid) hallada = s; }); });
+    return hallada;
+  }
+  function igualesDe(d, s) {
+    var n = 0, nombre = String(s.nombre).trim().toLowerCase();
+    Object.keys(d.semanas).forEach(function (w) {
+      d.semanas[w].forEach(function (x) { if (x.id !== s.id && x.dia === s.dia && String(x.nombre).trim().toLowerCase() === nombre && x.estado !== 'Completada') n++; });
+    });
+    return n;
+  }
+  function avisoHecha(s) {
+    return s.estado === 'Completada' ? '<div class="banner warn" style="margin-top:12px">Esta sesión ya la hizo el cliente. Lo que registró (series y pesos) no cambia; solo cambia lo planeado.</div>' : '';
+  }
+  function alcanceHtml(d, s) {
+    var n = igualesDe(d, s);
+    S.alcance = n ? 'iguales' : 'una';
+    if (!n) return '';
+    return '<h3>¿Dónde aplicar el cambio?</h3><div class="seg" role="group" aria-label="Dónde aplicar el cambio">' +
+      '<button data-act="alcance" data-v="iguales" aria-pressed="true">Esta y ' + plural(n, 'igual', 'iguales') + '</button>' +
+      '<button data-act="alcance" data-v="una" aria-pressed="false">Solo esta</button></div>' +
+      '<p class="small muted">Iguales: la sesión "' + esc(s.nombre) + '" del ' + esc(s.dia) + ' en otras semanas, sin contar las que el cliente ya hizo.</p>';
+  }
+  function trasEditar(mensaje) {
+    cerrarHoja(); toast(mensaje);
+    var idPlan = S.planSel;
+    delete (S.datos.plan || {})[idPlan]; olvidar(['planes', 'hoy', 'clientes']);
+    if (S.tab === 'planes' && S.planSel === idPlan) cargarPlan(idPlan, true);
+  }
+  function enSesiones(n) { return n > 1 ? ' en ' + plural(n, 'sesión', 'sesiones') : ''; }
+  // Quitar pide un segundo toque, para no borrar sin querer.
+  function confirmado(btn, texto) {
+    if (btn.getAttribute('data-seguro') === '1') return true;
+    btn.setAttribute('data-seguro', '1'); btn.textContent = texto;
+    return false;
+  }
+
+  // Ejercicio: editar (con eid) o agregar (sin eid)
+  function pedirEjercicio(sid, eid) {
+    var d = planAbierto(), s = d && buscarSesion(d, sid);
+    if (!s) return;
+    S.sesAbierta = sid;
+    var e = eid ? s.ejercicios.filter(function (x) { return x.id === eid; })[0] : null, grupos = {}, orden = [];
+    (d.biblioteca || []).forEach(function (b) { var g = b.grupo || 'Otros'; if (!grupos[g]) { grupos[g] = []; orden.push(g); } grupos[g].push(b); });
+    var actual = e ? e.nombre.toLowerCase() : '';
+    var opts = orden.map(function (g) {
+      return '<optgroup label="' + esc(g) + '">' + grupos[g].map(function (b) {
+        return '<option value="' + esc(b.nombre) + '"' + (b.nombre.toLowerCase() === actual ? ' selected' : '') + '>' + esc(b.nombre) + (b.lugar === 'Gimnasio' ? ' (gimnasio)' : '') + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+    var enBiblio = (d.biblioteca || []).some(function (b) { return b.nombre.toLowerCase() === actual; });
+    if (e && !enBiblio) opts = '<option value="' + esc(e.nombre) + '" selected>' + esc(e.nombre) + ' (no está en la Biblioteca)</option>' + opts;
+    if (!e) opts = '<option value="">Elige un ejercicio</option>' + opts;
+    var peso = e && e.peso !== '' && e.peso !== null && e.peso !== undefined ? num(e.peso) : '';
+    var datos = ' data-s="' + esc(sid) + '"' + (e ? ' data-e="' + esc(e.id) + '"' : '');
+    abrirHoja('<h2>' + (e ? 'Editar ejercicio' : 'Agregar ejercicio') + '</h2><p class="muted" style="margin-top:4px">' + esc(s.nombre) + ' · ' + esc(s.dia) + ' ' + esc(fechaLarga(s.fecha)) + '</p>' + avisoHecha(s) +
+      '<div class="form"><label for="eNom">Ejercicio</label><select id="eNom">' + opts + '</select>' +
+      '<div class="dos"><div><label for="eSer">Series</label><input id="eSer" type="number" inputmode="numeric" min="1" max="8" value="' + esc(e ? e.series : 3) + '"></div>' +
+      '<div><label for="eRep">Repeticiones</label><input id="eRep" maxlength="20" placeholder="10 u 8-10" value="' + esc(e ? e.repeticiones : '10') + '"></div></div>' +
+      '<div class="dos"><div><label for="eDes">Descanso (s)</label><input id="eDes" type="number" inputmode="numeric" min="0" max="300" value="' + esc(e ? e.descanso : 60) + '"></div>' +
+      '<div><label for="ePes">Peso sugerido (kg)</label><input id="ePes" type="text" inputmode="decimal" placeholder="Sin peso" value="' + esc(peso) + '"></div></div>' +
+      '<label for="eNot">Nota para el cliente</label></div><textarea id="eNot" maxlength="200" placeholder="Por ejemplo: baja despacio y sin rebotar">' + esc(e ? e.nota : '') + '</textarea>' +
+      '<p class="small muted">El cliente ve esta nota en su app.</p>' + alcanceHtml(d, s) + ERR_HOJA +
+      '<div class="actions"><button class="btn block-btn" data-act="guardarEj"' + datos + '>' + (e ? 'Guardar cambios' : 'Agregar ejercicio') + '</button>' +
+      (e ? '<div class="dos"><button class="btn ghost" data-act="moverEj" data-dir="arriba"' + datos + '>Subir</button><button class="btn ghost" data-act="moverEj" data-dir="abajo"' + datos + '>Bajar</button></div>' +
+        '<button class="btn ghost block-btn" data-act="quitarEj"' + datos + '>Quitar ejercicio</button>' : '') +
+      '<button class="btn ghost block-btn" data-act="cerrarHoja">Cancelar</button></div>');
+  }
+  function guardarEjercicio(btn, sid, eid) {
+    var nombre = $('eNom').value;
+    if (!nombre) { toast('Elige un ejercicio.'); return; }
+    ocupar(btn, true);
+    api('admin_guardarEjercicio', { idSesion: sid, idEjercicio: eid || '', alcance: S.alcance, nombre: nombre, series: Number($('eSer').value), repeticiones: $('eRep').value.trim(),
+      descanso: Number($('eDes').value), peso: $('ePes').value.trim().replace(',', '.'), nota: $('eNot').value })
+      .then(function (r) { trasEditar((eid ? 'Ejercicio guardado' : 'Ejercicio agregado') + enSesiones(r.sesiones) + '.'); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function moverEjercicio(btn, sid, eid, dir) {
+    ocupar(btn, true);
+    api('admin_moverEjercicio', { idSesion: sid, idEjercicio: eid, alcance: S.alcance, direccion: dir })
+      .then(function (r) { trasEditar(r.sesiones ? 'Orden actualizado' + enSesiones(r.sesiones) + '.' : 'Ya está ' + (dir === 'arriba' ? 'de primero.' : 'de último.')); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function quitarEjercicio(btn, sid, eid) {
+    if (!confirmado(btn, '¿Seguro? Toca otra vez para quitarlo')) return;
+    ocupar(btn, true);
+    api('admin_quitarEjercicio', { idSesion: sid, idEjercicio: eid, alcance: S.alcance })
+      .then(function (r) { trasEditar('Ejercicio quitado' + enSesiones(r.sesiones) + '.'); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+
+  // Sesión: editar (con sid) o agregar una vacía en las semanas elegidas (sin sid)
+  function pedirSesion(sid) {
+    var d = planAbierto(), s = sid ? d && buscarSesion(d, sid) : null;
+    if (!d || (sid && !s)) return;
+    if (s) S.sesAbierta = sid;
+    var dia = s ? s.dia : 'Lun', semActual = String(S.semanaSel || 1);
+    abrirHoja('<h2>' + (s ? 'Editar sesión' : 'Agregar sesión') + '</h2>' + (s ? avisoHecha(s) : '<p class="muted" style="margin-top:4px">Se crea vacía. Después le agregas los ejercicios.</p>') +
+      '<div class="form"><label for="sNom">Nombre</label><input id="sNom" maxlength="60" placeholder="Por ejemplo: Piernas y glúteos" value="' + esc(s ? s.nombre : '') + '">' +
+      '<div class="dos"><div><label for="sDia">Día</label><select id="sDia">' + DIAS.map(function (x) { return '<option' + (x === dia ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>' +
+      '<div><label for="sDur">Duración (min)</label><input id="sDur" type="number" inputmode="numeric" min="10" max="150" value="' + esc(s ? s.duracion : 60) + '"></div></div></div>' +
+      (s ? alcanceHtml(d, s) : '<h3>Semanas</h3>' + [1, 2, 3, 4, 5].map(function (w) {
+        return '<label class="check"><input type="checkbox" name="sSem" value="' + w + '"' + (String(w) === semActual ? ' checked' : '') + '><span>Semana ' + w + '</span></label>';
+      }).join('')) + ERR_HOJA +
+      '<div class="actions"><button class="btn block-btn" data-act="guardarSes"' + (s ? ' data-s="' + esc(sid) + '"' : '') + '>' + (s ? 'Guardar cambios' : 'Agregar sesión') + '</button>' +
+      (s ? '<button class="btn ghost block-btn" data-act="quitarSes" data-s="' + esc(sid) + '">Quitar sesión</button>' : '') +
+      '<button class="btn ghost block-btn" data-act="cerrarHoja">Cancelar</button></div>');
+  }
+  function guardarSesion(btn, sid) {
+    var datos = { nombre: $('sNom').value.trim(), dia: $('sDia').value, duracion: Number($('sDur').value) };
+    if (!datos.nombre) { toast('Escribe el nombre de la sesión.'); return; }
+    if (sid) { datos.idSesion = sid; datos.alcance = S.alcance; }
+    else {
+      datos.idPlan = S.planSel;
+      datos.semanas = Array.prototype.map.call(document.querySelectorAll('#sheet input[name="sSem"]:checked'), function (x) { return Number(x.value); });
+      if (!datos.semanas.length) { toast('Elige al menos una semana.'); return; }
+    }
+    ocupar(btn, true);
+    api('admin_guardarSesion', datos).then(function (r) {
+      if (!sid && r.ids && r.ids.length) S.sesAbierta = r.ids[0];
+      trasEditar((sid ? 'Sesión guardada' : 'Sesión agregada') + enSesiones(r.sesiones) + '.' + (r.avisos && r.avisos.length ? ' ' + r.avisos[0] : ''));
+    }).catch(function (e) { fallaEnHoja(btn, e); });
+  }
+  function quitarSesion(btn, sid) {
+    if (!confirmado(btn, '¿Seguro? Toca otra vez para quitarla')) return;
+    ocupar(btn, true);
+    api('admin_quitarSesion', { idSesion: sid, alcance: S.alcance })
+      .then(function (r) { trasEditar('Sesión quitada' + enSesiones(r.sesiones) + '.'); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+
+  // Objetivo, mensaje para el cliente y ciclo
+  function pedirDatosPlan() {
+    var d = planAbierto(); if (!d) return;
+    var p = d.plan;
+    abrirHoja('<h2>Datos del plan</h2><div class="form"><label for="pObj">Objetivo del mes</label><input id="pObj" maxlength="200" value="' + esc(p.objetivo) + '">' +
+      '<label for="pRec">Mensaje para el cliente</label></div><textarea id="pRec" maxlength="400" placeholder="Por ejemplo: este mes nos enfocamos en la técnica">' + esc(p.recomendacion) + '</textarea>' +
+      '<p class="small muted">El objetivo y este mensaje los ve el cliente en su app.</p>' +
+      '<div class="form"><div class="dos"><div><label for="pIni">Inicio del ciclo</label><input id="pIni" type="date" value="' + esc(p.inicio || '') + '"></div>' +
+      '<div><label for="pCor">Corte</label><input id="pCor" type="date" value="' + esc(p.corte || '') + '"></div></div></div>' +
+      '<p class="small muted" style="margin-top:6px">Si cambias el inicio, las sesiones que el cliente no ha hecho se mueven conservando su día, y el corte queda 30 días después (puedes cambiarlo aquí).</p>' + ERR_HOJA +
+      botones('<button class="btn block-btn" data-act="guardarDatosPlan">Guardar</button>'));
+  }
+  function guardarDatosPlan(btn) {
+    var p = planAbierto().plan, ini = $('pIni').value, cor = $('pCor').value;
+    if (ini && ini !== p.inicio && cor === p.corte) cor = ''; // el puente pone el corte a 30 días del nuevo inicio
+    ocupar(btn, true);
+    api('admin_editarPlan', { id: S.planSel, objetivo: $('pObj').value, recomendacion: $('pRec').value, inicio: ini, corte: cor })
+      .then(function (r) { trasEditar('Plan actualizado' + (r.movidas ? '. Se movieron ' + plural(r.movidas, 'sesión', 'sesiones') + '.' : '.')); })
+      .catch(function (e) { fallaEnHoja(btn, e); });
+  }
+
+  // Plan nuevo: desde la ficha del cliente (con id) o desde Planes (eligiendo el cliente)
+  function pedirNuevoPlan(id) {
+    S.copiar = true;
+    // Sugerencia: el día del corte del plan más reciente (empieza el mes siguiente); si ya pasó, el próximo lunes.
+    var ficha = id ? fichaDe(id) : null, ultimo = ficha && (ficha.planes || [])[0], lunes = proximoLunes();
+    var inicio = ultimo && ultimo.corte && new Date(ultimo.corte + 'T12:00:00') >= new Date() ? ultimo.corte : lunes;
+    var elegir = function (lista) {
+      return '<label for="nCli">Cliente</label><select id="nCli"><option value="">Elige el cliente</option>' + lista.filter(function (c) { return c.estado !== 'Inactivo'; })
+        .map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.nombre) + '</option>'; }).join('') + '</select>';
+    };
+    var cuerpo = function (selector) {
+      return '<h2>Plan nuevo' + (id ? ' para ' + esc(nombreDe(id)) : '') + '</h2><div class="form">' + selector +
+        '<label for="nIni">Inicio del ciclo</label><input id="nIni" type="date" value="' + esc(inicio) + '"></div>' +
+        '<p class="small muted" style="margin-top:6px">El corte queda 30 días después; puedes cambiarlo al editar el plan.</p>' +
+        '<h3>¿Cómo empezar?</h3><div class="seg" role="group" aria-label="Cómo empezar"><button data-act="copiarSel" data-v="1" aria-pressed="true">Copiar su plan más reciente</button><button data-act="copiarSel" data-v="0" aria-pressed="false">Vacío</button></div>' +
+        '<p class="small muted">Al copiar se conservan las sesiones, los ejercicios, las cargas y las notas, con fechas nuevas. Queda Por aprobar: el cliente lo ve cuando lo apruebes y llegue su inicio.</p>' + ERR_HOJA +
+        botones('<button class="btn block-btn" data-act="crearPlan"' + (id ? ' data-id="' + esc(id) + '"' : '') + '>Crear plan</button>');
+    };
+    if (id) { abrirHoja(cuerpo('')); return; }
+    abrirHoja('<h2>Plan nuevo</h2><div class="skel big" style="margin-top:16px"></div>');
+    pedirTab('clientes').then(function (lista) { if (!$('sheet').hidden) abrirHoja(cuerpo(elegir(lista))); })
+      .catch(function (e) { if (e && e.sesion) manejarError(e); else { cerrarHoja(); toast(e.message); } });
+  }
+  function crearPlan(btn, id) {
+    id = id || ($('nCli') || {}).value;
+    if (!id) { toast('Elige el cliente.'); return; }
+    var ini = ($('nIni') || {}).value;
+    if (!ini) { toast('Elige la fecha de inicio.'); return; }
+    ocupar(btn, true);
+    api('admin_nuevoPlan', { id: id, inicio: ini, copiar: !!S.copiar }).then(function (r) {
+      cerrarHoja(); toast(r.copiadoDe ? 'Plan creado con ' + plural(r.sesiones, 'sesión', 'sesiones') + '. Revísalo y apruébalo.' : 'Plan creado. Agrégale sesiones.');
+      olvidar(['planes', 'hoy', 'clientes'], id); abrirPlan(r.idPlan);
+    }).catch(function (e) { fallaEnHoja(btn, e); });
   }
 
   /* ---------- Pagos ---------- */
@@ -894,6 +1097,21 @@
     else if (a === 'cargarPlan') cargarPlanPanel(el, id);
     else if (a === 'pedirBaja') pedirBaja(id);
     else if (a === 'baja') baja(el, id);
+    else if (a === 'editEj') pedirEjercicio(el.getAttribute('data-s'), el.getAttribute('data-e'));
+    else if (a === 'guardarEj') guardarEjercicio(el, el.getAttribute('data-s'), el.getAttribute('data-e'));
+    else if (a === 'moverEj') moverEjercicio(el, el.getAttribute('data-s'), el.getAttribute('data-e'), el.getAttribute('data-dir'));
+    else if (a === 'quitarEj') quitarEjercicio(el, el.getAttribute('data-s'), el.getAttribute('data-e'));
+    else if (a === 'editSes') pedirSesion(el.getAttribute('data-s'));
+    else if (a === 'guardarSes') guardarSesion(el, el.getAttribute('data-s'));
+    else if (a === 'quitarSes') quitarSesion(el, el.getAttribute('data-s'));
+    else if (a === 'editPlan') pedirDatosPlan();
+    else if (a === 'guardarDatosPlan') guardarDatosPlan(el);
+    else if (a === 'pedirNuevoPlan') pedirNuevoPlan(id);
+    else if (a === 'crearPlan') crearPlan(el, id);
+    else if (a === 'alcance' || a === 'copiarSel') {
+      Array.prototype.forEach.call(el.parentNode.querySelectorAll('[data-act="' + a + '"]'), function (b) { b.setAttribute('aria-pressed', String(b === el)); });
+      if (a === 'alcance') S.alcance = el.getAttribute('data-v'); else S.copiar = el.getAttribute('data-v') === '1';
+    }
   });
   document.addEventListener('input', function (e) { if (e.target && e.target.id === 'buscar') { S.q = e.target.value; pintarLista(); } });
   document.addEventListener('keydown', function (e) {
