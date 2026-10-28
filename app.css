@@ -267,6 +267,16 @@ textarea{width:100%;min-height:88px;border-radius:14px;border:1.5px solid var(--
 .welcome p{font-size:16px;line-height:1.55}
 .welcome p+p{margin-top:8px}
 .welcome .by{margin-top:10px;font-family:var(--display);font-weight:800;color:var(--muted)}
+.cumple{margin-top:18px;padding:16px 18px;border-radius:16px;background:var(--green);color:var(--on-green)}
+.cumple b{display:block;font-family:var(--display);font-weight:800;font-size:19px}
+.cumple p{margin-top:6px;line-height:1.5}
+.cumple .by{font-family:var(--display);font-weight:800;opacity:.85}
+.salud summary{display:flex;align-items:baseline;justify-content:space-between;gap:12px;cursor:pointer;list-style:none}
+.salud summary::-webkit-details-marker{display:none}
+.salud summary h2{margin:0}
+.salud[open] summary .muted{display:none}
+.salud h3{margin-top:18px}
+.kv-col span:last-child small{display:block;font-weight:400;font-size:13px;color:var(--muted);margin-top:2px}
 .cut{display:flex;justify-content:space-between;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:14px}
 .cut span{color:var(--muted)}
 .cut b{font-weight:600;white-space:nowrap}

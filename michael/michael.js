@@ -189,7 +189,11 @@
     var nata = d.items.filter(function (x) { return x.quien === 'Nata'; });
     var espera = d.items.filter(function (x) { return x.quien === 'Cliente'; });
     var lead = tuyo.length === 0 ? 'No hay nada esperando tu decisión.' : (tuyo.length === 1 ? 'Hay 1 cosa esperando tu decisión.' : 'Hay ' + tuyo.length + ' cosas esperando tu decisión.');
-    $('s-hoy').innerHTML = '<div class="hello">' + saludo() + '<h1>Michael</h1></div><p class="lead">' + lead + '</p>' +
+    var cumples = (d.cumpleanos || []).length ? '<div class="group"><h2>Cumpleaños de hoy 🎂<span>Felicítalo por WhatsApp</span></h2><div class="list" style="margin-top:4px">' + d.cumpleanos.map(function (c) {
+      return '<div class="row"><span class="t"><b>' + esc(c.nombre) + '</b><span>' + (c.edad ? 'Cumple ' + esc(c.edad) + ' años' : 'Cumple años hoy') + '</span></span>' +
+        (c.whatsapp ? '<a class="btn ghost btn-sm" href="' + esc(c.whatsapp) + '" target="_blank" rel="noopener noreferrer">Felicitar</a>' : '<button class="linkbtn" data-act="abrirCliente" data-id="' + esc(c.id) + '">Ver</button>') + '</div>';
+    }).join('') + '</div></div>' : '';
+    $('s-hoy').innerHTML = '<div class="hello">' + saludo() + '<h1>Michael</h1></div><p class="lead">' + lead + '</p>' + cumples +
       (d.items.length ? '' : '<div class="empty"><b>Todo al día</b>Cuando un cliente avance, aquí verás lo siguiente.</div>') +
       grupoHoy('Para ti', tuyo.length + (tuyo.length === 1 ? ' pendiente' : ' pendientes'), tuyo, 'Michael') +
       grupoHoy('Para Nata', 'No necesitas hacer nada', nata, 'Nata') +
@@ -307,8 +311,42 @@
     var docs = '<div class="block"><h2>Documentos</h2><div class="block" style="margin-top:0"><div class="kv"><span>Autorización de datos</span><span>' + (d.firmas.autorizacion ? 'Firmada' : 'Pendiente') + '</span></div><div class="kv"><span>Contrato</span><span>' + (d.firmas.contrato ? 'Firmado' : 'Pendiente') + '</span></div></div></div>';
     $('s-clientes').innerHTML = '<button class="back" data-act="volverClientes">' + ATRAS + 'Clientes</button><h1>' + esc(c.nombre) + '</h1>' +
       '<p class="lead"><span class="tag ' + claseCliente(c.estado) + '">' + esc(c.estado) + '</span> ' + etiquetaSemaforo(d.semaforo) + esc(c.servicio) + (c.ciudad ? ' · ' + esc(c.ciudad) : '') + '</p>' + wa +
-      avanceIngreso(d) + kpis + plan + planes + progreso + fotos + coms + pagos + docs + accionesCliente(c) +
+      avanceIngreso(d) + kpis + perfilCliente(d) + saludCliente(d) + plan + planes + progreso + fotos + coms + pagos + docs + emergenciaCliente(d) + accionesCliente(c) +
       (c.baja ? '<div class="banner" style="margin-top:24px">Se dio de baja el ' + esc(fechaLarga(c.baja)) + (c.motivoBaja ? '. Motivo: ' + esc(c.motivoBaja) : '') + '.</div>' : '');
+  }
+
+  /* ---------- Perfil, salud y contacto de emergencia (2026-10-28) ---------- */
+  function diaMes(md) { return new Date('2000-' + md + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' }); }
+  function kvSi(k, v) { return v || v === 0 ? '<div class="kv"><span>' + esc(k) + '</span><span>' + esc(v) + '</span></div>' : ''; }
+  function perfilCliente(d) {
+    var pf = d.perfil; if (!pf) return '';
+    var cu = pf.cumple, up = pf.ultimoPago;
+    var cumple = cu ? diaMes(cu.dia) + (cu.hoy ? ' · ¡hoy!' : (cu.dias <= 7 ? ' · en ' + plural(cu.dias, 'día', 'días') : '')) : '';
+    var filas = kvSi('Edad', cu && cu.edad ? cu.edad + ' años' : '') + kvSi('Cumpleaños', cumple) +
+      kvSi('Último pago', up ? (up.fecha ? fechaCorta(up.fecha) : 'Corte del ' + fechaCorta(up.corte)) + ' · ' + dinero(up.monto) + ' · ' + up.estado : 'Sin pagos todavía') +
+      (pf.datos || []).map(function (x) { return kvSi(x[0], x[1]); }).join('');
+    return '<div class="block"><h2>Perfil</h2><div class="block" style="margin-top:0">' + filas + '</div>' +
+      (cu && cu.hoy && cu.whatsapp ? '<a class="btn block-btn" style="margin-top:12px" href="' + esc(cu.whatsapp) + '" target="_blank" rel="noopener noreferrer">Felicitarlo por WhatsApp 🎂</a>' : '') + '</div>';
+  }
+  function saludCliente(d) {
+    var pf = d.perfil; if (!pf) return '';
+    var lineas = (pf.salud || []).map(function (s) {
+      return '<div class="ex-line" style="padding-left:0"><b>' + esc(s.e) + ': ' + esc(s.v) + '</b>' + s.d.map(function (x) { return '<span>' + esc(x[0]) + ': ' + esc(x[1]) + '</span>'; }).join('') + '</div>';
+    }).join('');
+    var act = (pf.actualizaciones || []).map(function (a) {
+      return '<div class="cm"><b>' + esc(a.cambios) + '</b><span>' + esc(a.fecha ? fechaLarga(a.fecha) : '') + ' · ' + (a.estado === 'Por revisar' ? 'Por revisar' : 'Revisada') + ' · Autorización médica: ' + esc(a.autorizacion) + '</span><p>' + esc(a.detalle) + '</p></div>';
+    }).join('');
+    return '<div class="block"><h2>Salud</h2>' +
+      (pf.saludPendiente ? '<div class="banner warn" style="margin:0 0 12px">Actualizó su salud. Revísala y decide de nuevo su semáforo.</div>' : '') +
+      (act ? '<h3 style="margin-top:0">Actualizaciones del cliente</h3>' + act : '') +
+      (lineas ? '<details class="sess"><summary><span class="t"><b>Lo que respondió en el formulario</b><span>' + plural(pf.salud.length, 'respuesta', 'respuestas') + '</span></span>' + CHEV + '</summary>' + lineas + '</details>' : '<p class="muted">Todavía no hay respuestas del formulario.</p>') +
+      (d.semaforo ? '<div style="margin-top:12px"><button class="btn ghost block-btn" data-act="pedirSemaforo" data-id="' + esc(d.cliente.id) + '">' + (pf.saludPendiente ? 'Revisar y decidir semáforo' : 'Cambiar semáforo') + '</button></div>' : '') +
+      '<span class="private">Solo tú ves esto.</span></div>';
+  }
+  function emergenciaCliente(d) {
+    var em = d.perfil && d.perfil.emergencia; if (!em) return '';
+    return '<div class="block"><h2>Contacto de emergencia</h2><div class="block" style="margin-top:0">' + kvSi('Nombre', em.nombre) + kvSi('Parentesco', em.parentesco) + kvSi('Teléfono', em.telefono) + '</div>' +
+      (em.whatsapp ? '<div class="dos" style="margin-top:12px"><a class="btn ghost" href="tel:+' + esc(em.whatsapp.replace(/\D/g, '')) + '">Llamar</a><a class="btn ghost" href="' + esc(em.whatsapp) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a></div>' : '') + '</div>';
   }
 
   /* ---------- Semáforo y avance del ingreso (solo el color; nunca las señales de salud) ---------- */

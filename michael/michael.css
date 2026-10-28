@@ -31,6 +31,8 @@
 .ses-acts{display:flex;flex-wrap:wrap;gap:6px 18px}
 .dos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #nuevoEjBox[hidden]{display:none}
+.btn-sm{min-height:38px;padding:0 16px;font-size:14px;flex:none;display:inline-flex;align-items:center}
+.row .btn-sm{margin-left:auto}
 .sheet-body h3{margin-top:18px}
 .notes{margin-top:12px;padding:14px 16px;border-radius:14px;background:var(--surface);font-size:14px;line-height:1.55;white-space:pre-wrap}
 .private{display:inline-block;margin-top:4px;font-size:12px;color:var(--muted)}

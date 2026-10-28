@@ -140,7 +140,8 @@
     var el = $('s-inicio');
     var h = '<div class="hello">' + saludo() + '<h1>' + esc(d.nombre) + '</h1></div>' +
       '<div class="welcome"><p>Te doy la bienvenida a tu espacio. Aquí registras cómo entrenas y cómo te sientes, y ves tu avance mes a mes.</p>' +
-      '<p>Yo reviso lo que anotas y ajusto tu plan contigo. Cuéntame todo, por pequeño que parezca.</p><p class="by">Michael</p></div>';
+      '<p>Yo reviso lo que anotas y ajusto tu plan contigo. Cuéntame todo, por pequeño que parezca.</p><p class="by">Michael</p></div>' +
+      (d.cumpleHoy ? '<div class="cumple" role="status"><b>¡Feliz cumpleaños, ' + esc(d.nombre) + '! 🎂</b><p>Que este nuevo año venga con mucha salud, energía y metas cumplidas. Gracias por entrenar conmigo.</p><p class="by">Michael</p></div>' : '');
     if (!d.plan) {
       el.innerHTML = h + '<div class="banner">' + esc(d.mensaje || 'Michael está preparando tu plan. Te avisa aquí cuando esté listo.') + '</div>' + bloqueCorte(d);
       return;
@@ -527,9 +528,16 @@
       return '<div class="who-doc"><div><b>' + nombre + '</b><span class="s">' + (firmado && x.fecha ? 'Firmado el ' + esc(fechaLarga(x.fecha)) : (firmado ? 'Firmado' : 'Pendiente de firma')) + '</span></div><span class="tag ' + (firmado ? 'hecha' : 'pendiente') + '">' + (firmado ? 'Firmado' : 'Pendiente') + '</span></div>';
     }
     var ini = String(p.nombre || '').split(/\s+/).map(function (x) { return x.charAt(0); }).slice(0, 2).join('').toUpperCase();
+    var kv = function (k, v) { return v || v === 0 ? '<div class="kv"><span>' + esc(k) + '</span><span>' + esc(v) + '</span></div>' : ''; };
+    var cu = p.cumple, up = p.ultimoPago;
+    var datos = kv('Edad', cu && cu.edad ? cu.edad + ' años' : '') + kv('Cumpleaños', cu ? diaMes(cu.dia) + (cu.hoy ? ' · ¡es hoy!' : '') : '') +
+      kv('Con Michael desde hace', p.antiguedad) + kv('Próximo corte', p.proximoCorte ? fechaLarga(p.proximoCorte) : '') +
+      kv('Último pago', up ? (up.fecha ? fechaLarga(up.fecha) : 'Corte del ' + fechaLarga(up.corte)) + (up.monto ? ' · ' + dinero(up.monto) : '') + ' · ' + up.estado : '');
     $('s-perfil').innerHTML = '<h1>Tu perfil</h1><div class="who"><div class="avatar" aria-hidden="true">' + esc(ini) + '</div><div><b>' + esc(p.nombre) + '</b>' + (p.desde ? '<span class="muted small">Conmigo desde ' + esc(fechaLarga(p.desde)) + '</span>' : '') + '</div></div>' +
       '<div class="block" style="margin-top:20px"><div class="kv"><span>Modalidad</span><span>' + esc(p.modalidad) + '</span></div><div class="kv"><span>Plan</span><span>' + esc(p.servicio) + '</span></div>' +
-      '<div class="kv"><span>Frecuencia</span><span>' + esc(p.sesionesPorSemana) + ' días por semana</span></div><div class="kv"><span>Fecha de corte</span><span>El ' + esc(p.diaCorte) + ' de cada mes</span></div></div>' +
+      '<div class="kv"><span>Frecuencia</span><span>' + esc(p.sesionesPorSemana) + ' días por semana</span></div><div class="kv"><span>Fecha de corte</span><span>El ' + esc(p.diaCorte) + ' de cada mes</span></div>' + datos + '</div>' +
+      ((p.datos || []).length ? '<div class="block"><h2>Lo que me contaste</h2>' + p.datos.map(function (x) { return kv(x[0], x[1]); }).join('') + '</div>' : '') +
+      miSalud(p) +
       '<div class="block"><h2>Documentos</h2>' + doc('Contrato y acuerdos', dc.contrato) + doc('Autorización de datos personales', dc.autorizacion) + '</div>' +
       '<div class="block"><h2>Apariencia</h2><div class="seg" style="margin-top:0" role="group" aria-label="Apariencia">' + tb('auto', 'Automática') + tb('dark', 'Oscura') + tb('light', 'Clara') + '</div></div>' +
       '<div class="block">' + (WHATSAPP_MICHAEL ? '<a class="btn block-btn" href="https://wa.me/' + esc(WHATSAPP_MICHAEL) + '" target="_blank" rel="noopener noreferrer">Escribir a Michael</a><div style="height:10px"></div>' : '') +
@@ -537,6 +545,43 @@
       '<div class="block"><h2>Sígueme</h2><p class="muted small" style="margin-top:-6px">Tips, rutinas y novedades.</p><div class="redes">' +
         REDES.map(function (r) { return '<a class="btn ghost" href="' + esc(r[1]) + '" target="_blank" rel="noopener noreferrer">' + esc(r[0]) + '</a>'; }).join('') + '</div></div>' +
       '<div class="block"><p class="note">Para tenerla como app: en el iPhone, toca Compartir y luego Añadir a pantalla de inicio. En Android, abre el menú del navegador y elige Instalar aplicación.</p></div>';
+  }
+
+  function diaMes(md) { return new Date('2000-' + md + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' }); }
+  // Mi salud: cerrada por defecto (si alguien más usa el celular, no queda a la vista). Lo que respondió y lo que ha actualizado.
+  function miSalud(p) {
+    var lineas = (p.salud || []).map(function (s) {
+      return '<div class="kv kv-col"><span>' + esc(s.e) + '</span><span>' + esc(s.v) + s.d.map(function (d) { return '<small>' + esc(d[0]) + ': ' + esc(d[1]) + '</small>'; }).join('') + '</span></div>';
+    }).join('');
+    var act = (p.actualizaciones || []).map(function (a) {
+      return '<div class="kv kv-col"><span>' + esc(a.fecha ? fechaLarga(a.fecha) : '') + (a.estado === 'Por revisar' ? ' · Michael aún no la revisa' : '') + '</span><span>' + esc(a.cambios) + '<small>' + esc(a.detalle) + '</small><small>Autorización médica: ' + esc(a.autorizacion) + '</small></span></div>';
+    }).join('');
+    return '<div class="block"><details class="salud"><summary><h2>Mi salud</h2><span class="muted small">Toca para ver</span></summary>' +
+      (lineas || '<p class="muted">Todavía no tengo tus respuestas del formulario.</p>') +
+      (act ? '<h3>Lo que me has actualizado</h3>' + act : '') +
+      '<button class="btn ghost block-btn" style="margin-top:14px" data-act="pedirSalud">¿Cambió algo de tu salud?</button></details></div>';
+  }
+  var cambiosSel = {}, autSel = null;
+  function pedirSalud() {
+    var p = (S.datos.perfil || {}).perfil || {};
+    cambiosSel = {}; autSel = null;
+    abrirHoja('<h2>¿Qué cambió?</h2><p class="muted" style="margin-top:6px">Michael lo revisa antes de tu próximo entrenamiento. Marca todo lo que aplique.</p>' +
+      '<div class="choices">' + (p.cambiosSalud || []).map(function (c) { return '<button class="choice" data-act="cambioSalud" data-v="' + esc(c) + '" aria-pressed="false">' + esc(c) + '</button>'; }).join('') + '</div>' +
+      '<label class="small muted" for="saludTxt">Cuéntale qué pasó</label><textarea id="saludTxt" maxlength="600" placeholder="Por ejemplo: me diagnosticaron hipertensión y empecé losartán"></textarea>' +
+      '<p class="small muted" style="margin:0 0 8px">¿Tienes autorización médica para entrenar?</p><div class="choices" style="grid-template-columns:repeat(3,1fr);margin-top:0">' +
+      ['Sí', 'No', 'No aplica'].map(function (x) { return '<button class="choice" data-act="autSalud" data-v="' + x + '" aria-pressed="false">' + x + '</button>'; }).join('') + '</div>' +
+      '<button class="btn block-btn" data-act="enviarSalud">Enviar a Michael</button><div style="height:10px"></div><button class="btn ghost block-btn" data-act="cerrarHoja">Cancelar</button>');
+  }
+  function enviarSalud(btn) {
+    var cambios = Object.keys(cambiosSel).filter(function (k) { return cambiosSel[k]; }), detalle = ($('saludTxt') || {}).value || '';
+    if (!cambios.length) { toast('Marca qué cambió.'); return; }
+    if (detalle.trim().length < 5) { toast('Cuéntale a Michael qué cambió.'); return; }
+    if (!autSel) { toast('Responde si tienes autorización médica.'); return; }
+    btn.classList.add('busy'); btn.disabled = true;
+    api('actualizarSalud', { cambios: cambios, detalle: detalle, autorizacion: autSel }).then(function () {
+      cerrarHoja(); toast('Listo. Michael lo revisa y te escribe si hace falta ajustar tu plan.');
+      delete S.datos.perfil; if (S.tab === 'perfil') cargarPantalla('perfil', true);
+    }).catch(function (e) { btn.classList.remove('busy'); btn.disabled = false; manejarError(e); });
   }
 
   /* ---------- Sesión ---------- */
@@ -589,6 +634,10 @@
       dibujarPerfil(S.datos.perfil);
     }
     else if (a === 'salir') cerrarSesion('');
+    else if (a === 'pedirSalud') pedirSalud();
+    else if (a === 'cambioSalud') { var v = el.getAttribute('data-v'); cambiosSel[v] = !cambiosSel[v]; el.setAttribute('aria-pressed', String(cambiosSel[v])); }
+    else if (a === 'autSalud') { autSel = el.getAttribute('data-v'); document.querySelectorAll('[data-act="autSalud"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); }
+    else if (a === 'enviarSalud') enviarSalud(el);
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
