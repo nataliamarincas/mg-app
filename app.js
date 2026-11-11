@@ -24,6 +24,7 @@
     { id: 'perfil', label: 'Perfil', icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>' }
   ];
   var CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  var ATRAS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
   var DUMB = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/></svg>';
   var CAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
   var ETIQUETA = { Completada: 'Hecha', Pendiente: 'Próxima', Omitida: 'Omitida', Validado: 'Validado', 'Pendiente de validación': 'Pendiente de validación', Rechazado: 'Rechazado', Firmado: 'Firmado' };
@@ -109,6 +110,7 @@
     }).join('');
   }
   function ir(tab, forzar) {
+    if (tab === 'plan') S.planVer = null;
     S.tab = tab;
     TABS.forEach(function (t) { $('s-' + t.id).classList.toggle('on', t.id === tab); });
     dibujarNav();
@@ -180,29 +182,93 @@
   }
 
   /* ---------- Mi Plan ---------- */
-  function dibujarPlan(d) {
-    var el = $('s-plan');
-    if (!d.plan) { el.innerHTML = '<h1>Tu plan</h1><div class="banner">' + esc(d.mensaje) + '</div>'; return; }
+  // anterior: un plan de un ciclo pasado, solo para verlo (ninguna sesión se puede empezar).
+  function dibujarPlan(d, anterior) {
+    var el = $('s-plan'), clave = anterior ? 'semanaAnt' : 'semanaSel';
+    var historial = '<div style="margin-top:20px"><button class="btn ghost block-btn" data-act="planesAnteriores">Ver mis planes anteriores</button></div>';
+    var cabeza = anterior ? '<button class="back" data-act="planesAnteriores">' + ATRAS + 'Planes anteriores</button><h1>Plan del ' + esc(fechaLarga(d.plan.inicio)) + '</h1>' : '<h1>Tu plan</h1>';
+    if (!d.plan) { el.innerHTML = '<h1>Tu plan</h1><div class="banner">' + esc(d.mensaje) + '</div>' + historial; return; }
     var semanas = Object.keys(d.semanas).sort(function (a, b) { return a - b; });
-    if (!semanas.length) { el.innerHTML = '<h1>Tu plan</h1><div class="banner">Tu plan todavía no tiene sesiones. Michael te avisa cuando las cargue.</div>'; return; }
-    if (!S.semanaSel || semanas.indexOf(String(S.semanaSel)) < 0) {
-      var prox = (S.datos.inicio && S.datos.inicio.proxima) ? String(S.datos.inicio.proxima.semana || '') : '';
-      S.semanaSel = semanas.indexOf(prox) >= 0 ? prox : semanas[0];
+    if (!semanas.length) { el.innerHTML = cabeza + '<div class="banner">' + (anterior ? 'Este plan no tuvo sesiones.' : 'Tu plan todavía no tiene sesiones. Michael te avisa cuando las cargue.') + '</div>' + (anterior ? '' : historial); return; }
+    if (!S[clave] || semanas.indexOf(String(S[clave])) < 0) {
+      var prox = !anterior && S.datos.inicio && S.datos.inicio.proxima ? String(S.datos.inicio.proxima.semana || '') : '';
+      S[clave] = semanas.indexOf(prox) >= 0 ? prox : semanas[0];
     }
     var hoy = hoyStr();
-    var filas = d.semanas[S.semanaSel].map(function (s) {
-      var estado = s.estado === 'Pendiente' && s.fecha === hoy ? 'hoy' : s.estado;
+    var filas = d.semanas[S[clave]].map(function (s) {
+      var estado = !anterior && s.estado === 'Pendiente' && s.fecha === hoy ? 'hoy' : s.estado;
       var cls = estado === 'Completada' ? 'hecha' : (estado === 'hoy' ? 'hoy' : (estado === 'Omitida' ? 'omitida' : 'futura'));
-      var txt = estado === 'hoy' ? 'Hoy' : (estado === 'Completada' ? 'Hecha' : (estado === 'Omitida' ? 'Omitida' : 'Próxima'));
-      var act = s.estado === 'Pendiente' && s.fecha && s.fecha <= hoy ? 'data-act="empezar" data-id="' + esc(s.id) + '"'
-        : (s.estado === 'Completada' ? 'data-act="aviso" data-m="Sesión completada. Puedes ver tu avance en Progreso."' : 'data-act="aviso" data-m="Esta sesión se abre el día que te toca."');
+      var txt = estado === 'hoy' ? 'Hoy' : (estado === 'Completada' ? 'Hecha' : (estado === 'Omitida' ? 'Omitida' : (anterior ? 'No hecha' : 'Próxima')));
+      // Las que tocan hoy o antes se entrenan; las hechas y las futuras se ven (resumen o vista previa).
+      var act = !anterior && s.estado === 'Pendiente' && s.fecha && s.fecha <= hoy ? 'data-act="empezar" data-id="' + esc(s.id) + '"' : 'data-act="verSesion" data-id="' + esc(s.id) + '"';
       return '<button class="row" ' + act + '><span class="d">' + esc(s.dia) + '</span><span class="t"><b>' + esc(s.nombre) + '</b><span>' + (s.duracion ? esc(s.duracion) + ' minutos' : '') + (s.fecha ? (s.duracion ? ', ' : '') + esc(fechaLarga(s.fecha)) : '') + '</span></span><span class="tag ' + cls + '">' + txt + '</span></button>';
     }).join('');
-    var seg = semanas.map(function (k) { return '<button data-act="semana" data-w="' + k + '" aria-pressed="' + (String(k) === String(S.semanaSel)) + '">Semana ' + k + '</button>'; }).join('');
-    el.innerHTML = '<h1>Tu plan</h1>' + (d.plan.objetivo ? '<p class="lead">' + esc(d.plan.objetivo) + '.</p>' : '') +
-      (d.plan.corte ? '<p class="note">Tu ciclo termina en tu fecha de corte, el ' + esc(fechaLarga(d.plan.corte)) + '.</p>' : '') +
+    var seg = semanas.map(function (k) { return '<button data-act="semana" data-w="' + k + '" aria-pressed="' + (String(k) === String(S[clave])) + '">Semana ' + k + '</button>'; }).join('');
+    el.innerHTML = cabeza + (d.plan.objetivo ? '<p class="lead">' + esc(d.plan.objetivo) + '.</p>' : '') +
+      (anterior ? '<p class="note">Del ' + esc(fechaLarga(d.plan.inicio)) + ' al ' + esc(fechaLarga(d.plan.corte)) + '. Toca una sesión para ver lo que hiciste.</p>'
+        : (d.plan.corte ? '<p class="note">Tu ciclo termina en tu fecha de corte, el ' + esc(fechaLarga(d.plan.corte)) + '.</p>' : '')) +
       '<div class="seg" role="group" aria-label="Semanas del plan">' + seg + '</div><div class="list">' + filas + '</div>' +
-      '<p class="note" style="margin-top:20px">Ajusto tu plan con lo que me cuentas después de entrenar.</p>';
+      (anterior ? '' : '<p class="note" style="margin-top:20px">Ajusto tu plan con lo que me cuentas después de entrenar.</p>' + historial);
+  }
+
+  // Planes de ciclos anteriores (solo para verlos)
+  function planesAnteriores() {
+    var el = $('s-plan');
+    S.planVer = null; cargando(el); el.scrollTop = 0;
+    api('planes').then(function (r) {
+      if (S.tab !== 'plan' || S.planVer) return;
+      el.innerHTML = '<button class="back" data-act="volverPlan">' + ATRAS + 'Tu plan</button><h1>Tus planes anteriores</h1>' +
+        (r.planes.length ? '<div class="list">' + r.planes.map(function (p) {
+          return '<button class="row" data-act="verPlanAnt" data-id="' + esc(p.id) + '"><span class="t"><b>' + esc(fechaLarga(p.inicio)) + ' al ' + esc(fechaLarga(p.corte)) + '</b><span>' + esc(p.objetivo || 'Sin objetivo') + '</span></span><span class="tag hecha">' + p.hechas + ' de ' + p.total + '</span></button>';
+        }).join('') + '</div>' : '<div class="banner">Todavía no tienes planes anteriores. Cuando termine un ciclo, lo verás aquí con todo lo que hiciste.</div>');
+    }).catch(function (e) { manejarError(e, el); });
+  }
+  function verPlanAnterior(id) {
+    var el = $('s-plan');
+    S.planVer = id; S.semanaAnt = null; cargando(el); el.scrollTop = 0;
+    api('plan', { id: id }).then(function (d) { S.datos.planAnt = d; if (S.tab === 'plan' && S.planVer === id) dibujarPlan(d, true); })
+      .catch(function (e) { manejarError(e, el); });
+  }
+
+  // Resumen de una sesión: la hecha muestra las series que marcó y el peso que anotó; la futura, lo que trae.
+  function verSesion(id) {
+    abrirHoja('<div id="resumenSes"><div class="skel big"></div><div class="skel" style="width:70%"></div></div>');
+    api('sesion', { idSesion: id }).then(function (r) { var c = $('resumenSes'); if (c) c.innerHTML = resumenSesion(r); })
+      .catch(function (e) { var c = $('resumenSes'); if (c) c.innerHTML = '<div class="banner err">' + esc(e.message) + '</div><div style="height:12px"></div><button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button>'; });
+  }
+  function resumenSesion(r) {
+    var s = r.sesion, hecha = s.estado === 'Completada', futura = !hecha && s.fecha && s.fecha > hoyStr(), porEj = {}, vistos = {}, hechas = 0, total = 0;
+    r.hechos.forEach(function (h) { (porEj[h.ejercicio] = porEj[h.ejercicio] || {})[h.serie] = h; });
+    // fuera: registrado sin estar en el plan (no suma al total de series del plan)
+    var bloque = function (nombre, series, titulo, sub, extra, fuera) {
+      var marcadas = porEj[nombre] || {}, nums = Object.keys(marcadas).map(Number).sort(function (a, b) { return a - b; });
+      vistos[nombre] = true;
+      var max = Math.max(series || 0, nums.length ? nums[nums.length - 1] : 0), sets = '';
+      for (var i = 1; i <= max; i++) sets += '<span class="set"' + (marcadas[i] ? ' aria-pressed="true" aria-label="Serie ' + i + ' hecha"' : ' aria-label="Serie ' + i + ' sin marcar"') + '>' + (marcadas[i] ? CHECK : i) + '</span>';
+      var pesos = nums.map(function (n) { return marcadas[n].peso; }).filter(function (p) { return p !== '' && p !== null && p !== undefined; });
+      var unicos = pesos.filter(function (p, i) { return pesos.indexOf(p) === i; });
+      var pesoTxt = !unicos.length ? '' : (unicos.length === 1 ? 'Usó ' + num(unicos[0]) + ' kg' : nums.filter(function (n) { return marcadas[n].peso !== '' && marcadas[n].peso !== null; }).map(function (n) { return 'S' + n + ': ' + num(marcadas[n].peso) + ' kg'; }).join(' · '));
+      if (!fuera) hechas += Math.min(nums.length, series);
+      return '<div class="ex"><div class="ex-info"><b>' + titulo + '</b><span>' + sub + '</span>' + (extra || '') + '</div>' +
+        (futura ? '' : '<div class="sets" style="padding-left:0">' + sets + '</div><p class="note">' + nums.length + ' de ' + series + ' series' + (pesoTxt ? ' · ' + esc(pesoTxt) : '') + '</p>') + '</div>';
+    };
+    var lista = r.ejercicios.map(function (e) {
+      total += e.series;
+      var sug = e.pesoSugerido !== '' && e.pesoSugerido !== null && e.pesoSugerido !== undefined ? ' · sugerido ' + num(e.pesoSugerido) + ' kg' : '';
+      var v = urlSegura(e.video);
+      var extra = futura ? (e.nota ? '<div class="note" style="margin-top:4px">' + esc(e.nota) + '</div>' : '') + (v ? '<div class="videolink"><a class="linkbtn" href="' + esc(v) + '" target="_blank" rel="noopener noreferrer">Ver video</a></div>' : '') : '';
+      var html = bloque(e.nombre, e.series, esc(e.nombre), e.series + ' × ' + esc(e.repeticiones) + sug, extra);
+      // Si usó la alternativa (máquina ocupada), sus series se ven aparte
+      if (e.alternativa && porEj[e.alternativa.nombre]) html += bloque(e.alternativa.nombre, e.series, esc(e.alternativa.nombre), 'Alternativa de ' + esc(e.nombre));
+      return html;
+    }).join('');
+    var otros = Object.keys(porEj).filter(function (n) { return !vistos[n]; }).map(function (n) { return bloque(n, Object.keys(porEj[n]).length, esc(n), 'También lo registraste', '', true); }).join('');
+    var estado = hecha ? 'Hecha el ' + fechaLarga(s.realizada || s.fecha) + (s.sensacion ? ' · Se sintió: ' + s.sensacion : '')
+      : (futura ? 'Se abre el ' + fechaLarga(s.fecha) + '. Así viene:' : (s.estado === 'Omitida' ? 'Omitida' : 'No la registraste'));
+    return '<h2>' + esc(s.nombre) + '</h2><p class="muted" style="margin-top:4px">' + esc(estado) + '</p>' +
+      (hecha ? '<p class="small" style="margin-top:8px"><b>' + hechas + ' de ' + total + ' series</b></p>' : '') +
+      (s.comentario ? '<div class="quote" style="margin-top:12px"><p>' + esc(s.comentario) + '</p></div>' : '') +
+      '<div>' + lista + otros + '</div><div style="height:16px"></div><button class="btn ghost block-btn" data-act="cerrarHoja">Cerrar</button>';
   }
 
   /* ---------- Entrenar ---------- */
@@ -615,7 +681,11 @@
     else if (a === 'reintentar') cargarPantalla(S.tab, true);
     else if (a === 'aviso') toast(el.getAttribute('data-m'));
     else if (a === 'empezar') { S.sesionId = el.getAttribute('data-id'); S.ses = null; ir('entrenar', true); }
-    else if (a === 'semana') { S.semanaSel = el.getAttribute('data-w'); dibujarPlan(S.datos.plan); }
+    else if (a === 'semana') { if (S.planVer) { S.semanaAnt = el.getAttribute('data-w'); dibujarPlan(S.datos.planAnt, true); } else { S.semanaSel = el.getAttribute('data-w'); dibujarPlan(S.datos.plan); } }
+    else if (a === 'verSesion') verSesion(el.getAttribute('data-id'));
+    else if (a === 'planesAnteriores') planesAnteriores();
+    else if (a === 'verPlanAnt') verPlanAnterior(el.getAttribute('data-id'));
+    else if (a === 'volverPlan') ir('plan');
     else if (a === 'serie') alternarSerie(el.getAttribute('data-e'), Number(el.getAttribute('data-i')));
     else if (a === 'finalizar') { sensacion = null; abrirFeedback(); }
     else if (a === 'sensacion') { sensacion = el.getAttribute('data-v'); document.querySelectorAll('.choice').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); }

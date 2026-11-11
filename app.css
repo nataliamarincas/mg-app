@@ -267,6 +267,9 @@ textarea{width:100%;min-height:88px;border-radius:14px;border:1.5px solid var(--
 .welcome p{font-size:16px;line-height:1.55}
 .welcome p+p{margin-top:8px}
 .welcome .by{margin-top:10px;font-family:var(--display);font-weight:800;color:var(--muted)}
+.back{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:-8px 0 0 -4px;padding:0 4px;background:none;border:0;color:var(--muted);font-weight:600}
+.back svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#resumenSes .set{width:38px;height:38px;font-size:14px}
 .cumple{margin-top:18px;padding:16px 18px;border-radius:16px;background:var(--green);color:var(--on-green)}
 .cumple b{display:block;font-family:var(--display);font-weight:800;font-size:19px}
 .cumple p{margin-top:6px;line-height:1.5}
